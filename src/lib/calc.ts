@@ -74,6 +74,8 @@ export interface DueInfo {
   dueDate?: string;
   distanceLeft?: number;
   daysLeft?: number;
+  /** Days until the distance limit at the owner's average daily distance. */
+  etaDays?: number;
 }
 
 const DAY = 86400000;
@@ -84,11 +86,12 @@ export function addMonths(date: string, months: number) {
   return d.toISOString().slice(0, 10);
 }
 
-export function dueInfo(item: MaintenanceItem, odometer: number, now = new Date()): DueInfo {
+export function dueInfo(item: MaintenanceItem, odometer: number, perDay: number | null = null, now = new Date()): DueInfo {
   const info: DueInfo = { state: 'unknown' };
   if (item.intervalDistance && item.lastDoneOdometer !== undefined) {
     info.dueOdometer = item.lastDoneOdometer + item.intervalDistance;
     info.distanceLeft = info.dueOdometer - odometer;
+    if (perDay && perDay > 0 && info.distanceLeft > 0) info.etaDays = Math.round(info.distanceLeft / perDay);
   }
   if (item.intervalMonths && item.lastDoneDate) {
     info.dueDate = addMonths(item.lastDoneDate, item.intervalMonths);
@@ -100,7 +103,8 @@ export function dueInfo(item: MaintenanceItem, odometer: number, now = new Date(
   const distSoon =
     info.distanceLeft !== undefined && info.distanceLeft <= Math.min(1500, (item.intervalDistance ?? 0) * 0.15);
   const dateSoon = info.daysLeft !== undefined && info.daysLeft <= Math.min(30, (item.intervalMonths ?? 0) * 30 * 0.25);
-  info.state = overdue ? 'overdue' : distSoon || dateSoon ? 'soon' : 'ok';
+  const etaSoon = info.etaDays !== undefined && info.etaDays <= 14;
+  info.state = overdue ? 'overdue' : distSoon || dateSoon || etaSoon ? 'soon' : 'ok';
   return info;
 }
 
@@ -130,5 +134,6 @@ export function describeDue(d: DueInfo, distanceUnit: string) {
         : `in ${fmtNum(d.distanceLeft)} ${distanceUnit}`,
     );
   if (d.daysLeft !== undefined) parts.push(d.daysLeft < 0 ? `${-d.daysLeft} d over` : `in ${d.daysLeft} d`);
-  return parts.join(' / ');
+  else if (d.etaDays !== undefined) parts.push(`≈ ${d.etaDays} d`);
+  return parts.join(' · ');
 }

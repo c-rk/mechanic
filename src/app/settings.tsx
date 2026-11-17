@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Shell } from '../components/Shell';
-import { GelButton, Input, Panel, Segmented, T } from '../components/ui';
+import { Button, Input, Panel, Segmented, T } from '../components/ui';
 import { DEFAULT_MODELS } from '../lib/ai';
 import { PickedFile, readText, shareText } from '../lib/files';
+import { proxyHealth } from '../lib/proxy';
+import { scheduleOdometerReminder } from '../lib/reminders';
 import { getApiKey, setApiKey } from '../lib/secrets';
 import { exportData, today, useStore } from '../lib/store';
 import { C, F } from '../lib/theme';
@@ -24,6 +26,25 @@ export default function SettingsScreen() {
   const [key, setKey] = useState('');
   const [keyNote, setKeyNote] = useState('');
   const [backupNote, setBackupNote] = useState('');
+  const [proxyNote, setProxyNote] = useState('');
+  const [reminderNote, setReminderNote] = useState('');
+
+  const testProxy = async () => {
+    setProxyNote('Checking…');
+    try {
+      const h = await proxyHealth();
+      const on = Object.entries(h.features).filter(([, v]) => v).map(([k]) => k);
+      const off = Object.entries(h.features).filter(([, v]) => !v).map(([k]) => k);
+      setProxyNote(`Connected. Available: ${on.join(', ')}.${off.length ? ` Not configured on the worker: ${off.join(', ')}.` : ''}`);
+    } catch (e) {
+      setProxyNote((e as Error).message);
+    }
+  };
+
+  const setReminder = async (days: number) => {
+    setSettings({ odoReminderDays: days });
+    setReminderNote(await scheduleOdometerReminder(days).catch((e) => (e as Error).message));
+  };
 
   useEffect(() => {
     getApiKey().then((k) => setKeyNote(k ? `A key ending in ${k.slice(-4)} is stored.` : 'No key stored.'));
@@ -63,7 +84,7 @@ export default function SettingsScreen() {
           </View>
           <View style={{ gap: 5 }}>
             <Text style={T.label}>Currency symbol</Text>
-            <Input accessibilityLabel="Currency symbol" value={settings.currency} onChangeText={(t) => setSettings({ currency: t })} maxLength={4} style={{ width: 90, fontFamily: F.mono }} />
+            <Input accessibilityLabel="Currency symbol" value={settings.currency} onChangeText={(t) => setSettings({ currency: t })} maxLength={4} style={{ width: 90, fontFamily: F.medium }} />
           </View>
           <Text style={T.dim}>Changing units relabels existing figures; it does not convert them.</Text>
         </View>
@@ -77,26 +98,62 @@ export default function SettingsScreen() {
           </View>
           <View style={{ gap: 5 }}>
             <Text style={T.label}>Model</Text>
-            <Input accessibilityLabel="Model" value={settings.aiModel} onChangeText={(t) => setSettings({ aiModel: t.trim() })} autoCapitalize="none" placeholder="Model identifier" style={{ fontFamily: F.mono }} />
+            <Input accessibilityLabel="Model" value={settings.aiModel} onChangeText={(t) => setSettings({ aiModel: t.trim() })} autoCapitalize="none" placeholder="Model identifier" style={{ fontFamily: F.medium }} />
           </View>
           {settings.aiProvider === 'custom' ? (
             <View style={{ gap: 5 }}>
               <Text style={T.label}>Base URL (OpenAI-compatible)</Text>
-              <Input accessibilityLabel="Base URL" value={settings.aiBaseUrl} onChangeText={(t) => setSettings({ aiBaseUrl: t.trim() })} autoCapitalize="none" placeholder="http://localhost:11434/v1" style={{ fontFamily: F.mono }} />
+              <Input accessibilityLabel="Base URL" value={settings.aiBaseUrl} onChangeText={(t) => setSettings({ aiBaseUrl: t.trim() })} autoCapitalize="none" placeholder="http://localhost:11434/v1" style={{ fontFamily: F.medium }} />
             </View>
           ) : null}
           <View style={{ gap: 5 }}>
             <Text style={T.label}>API key</Text>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              <Input accessibilityLabel="API key" value={key} onChangeText={setKey} secureTextEntry autoCapitalize="none" placeholder="Paste key" style={{ flex: 1, fontFamily: F.mono }} />
-              <GelButton label={key.trim() ? 'Store' : 'Remove'} small tone={key.trim() ? 'blue' : 'steel'} onPress={saveKey} />
+              <Input accessibilityLabel="API key" value={key} onChangeText={setKey} secureTextEntry autoCapitalize="none" placeholder="Paste key" style={{ flex: 1, fontFamily: F.medium }} />
+              <Button label={key.trim() ? 'Store' : 'Remove'} small tone={key.trim() ? "primary" : "secondary"} onPress={saveKey} />
             </View>
-            <Text style={[T.dim, { color: C.amber }]}>{keyNote}</Text>
+            <Text style={[T.dim, { color: C.accent }]}>{keyNote}</Text>
           </View>
           <Text style={T.dim}>
             The key is kept in the device keychain (in browser storage on web) and is sent only to the provider you
             selected. It is excluded from backups.
           </Text>
+        </View>
+      </Panel>
+
+      <Panel title="Odometer reminders">
+        <Text style={T.dim}>Asks for a reading so service estimates stay accurate between fill-ups and recorded drives.</Text>
+        <View style={{ marginTop: 10 }}>
+          <Segmented
+            options={[
+              { value: '0', label: 'Off' },
+              { value: '7', label: 'Weekly' },
+              { value: '14', label: '2 weeks' },
+              { value: '30', label: 'Monthly' },
+            ]}
+            value={String(settings.odoReminderDays)}
+            onChange={(d) => setReminder(Number(d))}
+          />
+        </View>
+        {reminderNote ? <Text style={[T.dim, { marginTop: 8 }]}>{reminderNote}</Text> : null}
+      </Panel>
+
+      <Panel title="Data proxy (Cloudflare Worker)">
+        <View style={{ gap: 12 }}>
+          <Text style={T.dim}>
+            Collects Reddit threads, YouTube videos, forum results, NHTSA complaints and shop prices. Only make, model, year
+            and part URLs are sent; nothing is stored on the worker. Deploy it from the worker/ folder of this project.
+          </Text>
+          <View style={{ gap: 6 }}>
+            <Text style={T.label}>Worker URL</Text>
+            <Input accessibilityLabel="Worker URL" value={settings.proxyUrl} onChangeText={(t) => setSettings({ proxyUrl: t.trim() })} autoCapitalize="none" placeholder="https://bay-one-proxy.<you>.workers.dev" />
+          </View>
+          <View style={{ gap: 6 }}>
+            <Text style={T.label}>App token</Text>
+            <Input accessibilityLabel="App token" value={settings.proxyToken} onChangeText={(t) => setSettings({ proxyToken: t.trim() })} autoCapitalize="none" secureTextEntry placeholder="Value of the worker's APP_TOKEN secret" />
+          </View>
+          <Button label="Test connection" tone="secondary" small onPress={testProxy} disabled={!settings.proxyUrl} style={{ alignSelf: 'flex-start' }} />
+          {proxyNote ? <Text style={T.dim}>{proxyNote}</Text> : null}
         </View>
       </Panel>
 
@@ -106,10 +163,10 @@ export default function SettingsScreen() {
           3D models are not included.
         </Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-          <GelButton label="Export" small onPress={() => shareText(`bay-one-backup-${today()}.json`, JSON.stringify(exportData(), null, 2)).catch((e) => setBackupNote((e as Error).message))} />
-          <GelButton label="Restore" tone="steel" small onPress={restore} />
+          <Button label="Export" small onPress={() => shareText(`bay-one-backup-${today()}.json`, JSON.stringify(exportData(), null, 2)).catch((e) => setBackupNote((e as Error).message))} />
+          <Button label="Restore" tone="secondary" small onPress={restore} />
         </View>
-        {backupNote ? <Text style={[T.dim, { color: C.amber, marginTop: 8 }]}>{backupNote}</Text> : null}
+        {backupNote ? <Text style={[T.dim, { color: C.accent, marginTop: 8 }]}>{backupNote}</Text> : null}
       </Panel>
     </Shell>
   );

@@ -5,7 +5,7 @@ import { describeDue, dueInfo, fmtMoney, fmtNum, fuelStats, sortByDue } from '..
 import { today, uid, useStore } from '../../lib/store';
 import { C, F, STATE_COLOR } from '../../lib/theme';
 import type { FuelEntry, MaintenanceItem, ServiceRecord, Vehicle } from '../../lib/types';
-import { Badge, Empty, FieldDef, FormModal, GelButton, Lcd, Panel, Row, T } from '../ui';
+import { Badge, Empty, FieldDef, FormModal, Button, Stat, Panel, Row, T } from '../ui';
 
 type Editing<T> = { item?: T } | null;
 
@@ -14,7 +14,7 @@ export function FuelTab({ v }: { v: Vehicle }) {
   const settings = useStore((s) => s.settings);
   const upsert = useStore((s) => s.upsert);
   const remove = useStore((s) => s.remove);
-  const updateVehicle = useStore((s) => s.updateVehicle);
+  const logOdometer = useStore((s) => s.logOdometer);
   const [editing, setEditing] = useState<Editing<FuelEntry>>(null);
 
   const entries = all.filter((f) => f.vehicleId === v.id).sort((a, b) => b.odometer - a.odometer);
@@ -33,24 +33,24 @@ export function FuelTab({ v }: { v: Vehicle }) {
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Lcd flex={1} label="Average" value={stats.economy === null ? '--.-' : stats.economy.toFixed(1)} unit={stats.economyLabel} color={C.green} />
-        <Lcd flex={1} label="Fuel spend" value={fmtNum(stats.totalCost, 2)} unit={settings.currency} />
+        <Stat flex={1} label="Average" value={stats.economy === null ? '--.-' : stats.economy.toFixed(1)} unit={stats.economyLabel} color={C.green} />
+        <Stat flex={1} label="Fuel spend" value={fmtNum(stats.totalCost, 2)} unit={settings.currency} />
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Lcd flex={1} label="Tracked" value={fmtNum(stats.distanceTracked)} unit={settings.distanceUnit} />
-        <Lcd flex={1} label={`Cost / ${settings.distanceUnit}`} value={stats.costPerDistance === null ? '-.--' : stats.costPerDistance.toFixed(3)} unit={settings.currency} />
+        <Stat flex={1} label="Tracked" value={fmtNum(stats.distanceTracked)} unit={settings.distanceUnit} />
+        <Stat flex={1} label={`Cost / ${settings.distanceUnit}`} value={stats.costPerDistance === null ? '-.--' : stats.costPerDistance.toFixed(3)} unit={settings.currency} />
       </View>
 
-      <Panel title="Fill-ups" right={<GelButton label="Add" small onPress={() => setEditing({})} />}>
+      <Panel title="Fill-ups" right={<Button label="Add" small onPress={() => setEditing({})} />}>
         {entries.length === 0 ? <Empty text="No fill-ups logged. Consumption needs two full fills." /> : null}
         {entries.map((e, i) => (
           <Row key={e.id} onPress={() => setEditing({ item: e })} last={i === entries.length - 1}>
             <View style={{ flex: 1 }}>
               <Text style={T.num}>
                 {fmtNum(e.volume, 2)} {settings.volumeUnit}
-                <Text style={[T.dim, { fontFamily: F.mono }]}>  {fmtMoney(e.totalCost, settings.currency)}</Text>
+                <Text style={[T.dim, { fontFamily: F.medium }]}>  {fmtMoney(e.totalCost, settings.currency)}</Text>
               </Text>
-              <Text style={[T.dim, { fontFamily: F.mono }]}>
+              <Text style={[T.dim, { fontFamily: F.medium }]}>
                 {e.date}  {fmtNum(e.odometer)} {settings.distanceUnit}
                 {e.full ? '' : '  partial'}
               </Text>
@@ -75,7 +75,7 @@ export function FuelTab({ v }: { v: Vehicle }) {
         onSave={(x) => {
           const entry = { id: editing?.item?.id ?? uid(), vehicleId: v.id, ...x } as unknown as FuelEntry;
           upsert('fuel', entry);
-          if (entry.odometer > v.odometer) updateVehicle(v.id, { odometer: entry.odometer });
+          logOdometer(v.id, entry.odometer, 'fuel', `${entry.date}T12:00:00.000Z`);
           setEditing(null);
         }}
       />
@@ -89,7 +89,7 @@ export function ServiceTab({ v }: { v: Vehicle }) {
   const settings = useStore((s) => s.settings);
   const upsert = useStore((s) => s.upsert);
   const remove = useStore((s) => s.remove);
-  const updateVehicle = useStore((s) => s.updateVehicle);
+  const logOdometer = useStore((s) => s.logOdometer);
   const [item, setItem] = useState<Editing<MaintenanceItem>>(null);
   const [record, setRecord] = useState<Editing<ServiceRecord>>(null);
 
@@ -122,7 +122,7 @@ export function ServiceTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel title="Schedule" right={<GelButton label="Add" small onPress={() => setItem({})} />}>
+      <Panel title="Schedule" right={<Button label="Add" small onPress={() => setItem({})} />}>
         <Text style={[T.dim, { marginBottom: 4 }]}>
           Intervals start as generic values. Set them to the figures in the owner&apos;s manual.
         </Text>
@@ -130,25 +130,25 @@ export function ServiceTab({ v }: { v: Vehicle }) {
           <Row key={m.id} onPress={() => setItem({ item: m })} last={i === schedule.length - 1}>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={T.body}>{m.name}</Text>
-              <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>
+              <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]}>
                 {[m.intervalDistance && `${fmtNum(m.intervalDistance)} ${u}`, m.intervalMonths && `${m.intervalMonths} mo`].filter(Boolean).join(' / ') || 'no interval'}
                 {'  ·  '}
                 {describeDue(due, u)}
               </Text>
             </View>
             <Badge text={due.state === 'unknown' ? 'no data' : due.state} color={STATE_COLOR[due.state]} />
-            <GelButton label="Done" tone="steel" small onPress={() => markDone(m)} />
+            <Button label="Done" tone="secondary" small onPress={() => markDone(m)} />
           </Row>
         ))}
       </Panel>
 
-      <Panel title={`History · ${fmtMoney(spend, settings.currency)}`} right={<GelButton label="Add" small onPress={() => setRecord({})} />}>
+      <Panel title={`History · ${fmtMoney(spend, settings.currency)}`} right={<Button label="Add" small onPress={() => setRecord({})} />}>
         {records.length === 0 ? <Empty text="No service records yet." /> : null}
         {records.map((r, i) => (
           <Row key={r.id} onPress={() => setRecord({ item: r })} last={i === records.length - 1}>
             <View style={{ flex: 1 }}>
               <Text style={T.body}>{r.title}</Text>
-              <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>
+              <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]}>
                 {r.date}  {fmtNum(r.odometer)} {u}
                 {r.shop ? `  ${r.shop}` : ''}
               </Text>
@@ -180,7 +180,7 @@ export function ServiceTab({ v }: { v: Vehicle }) {
         onSave={(x) => {
           const r = { id: record?.item?.id ?? uid(), vehicleId: v.id, ...x, cost: x.cost ?? 0 } as unknown as ServiceRecord;
           upsert('services', r);
-          if (r.odometer > v.odometer) updateVehicle(v.id, { odometer: r.odometer });
+          logOdometer(v.id, r.odometer, 'service', `${r.date}T12:00:00.000Z`);
           setRecord(null);
         }}
       />

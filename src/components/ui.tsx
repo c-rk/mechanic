@@ -1,6 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode, useState } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,18 +13,21 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { C, F } from '../lib/theme';
+import { C, F, NUM } from '../lib/theme';
 
 export const T = StyleSheet.create({
-  body: { color: C.text, fontFamily: F.body, fontSize: 15, lineHeight: 21 },
-  dim: { color: C.dim, fontFamily: F.body, fontSize: 13, lineHeight: 18 },
-  label: { color: C.dim, fontFamily: F.display, fontSize: 9, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { color: C.text, fontFamily: F.display, fontSize: 17, letterSpacing: 0.5 },
-  num: { color: C.text, fontFamily: F.monoBold, fontSize: 16 },
+  body: { color: C.text, fontFamily: F.regular, fontSize: 15, lineHeight: 21 },
+  strong: { color: C.text, fontFamily: F.semibold, fontSize: 15, lineHeight: 21 },
+  dim: { color: C.dim, fontFamily: F.regular, fontSize: 13, lineHeight: 18 },
+  small: { color: C.faint, fontFamily: F.medium, fontSize: 12, lineHeight: 16, ...NUM },
+  label: { color: C.faint, fontFamily: F.semibold, fontSize: 11, letterSpacing: 0.9, textTransform: 'uppercase' },
+  title: { color: C.text, fontFamily: F.bold, fontSize: 22, letterSpacing: -0.4 },
+  num: { color: C.text, fontFamily: F.semibold, fontSize: 15, ...NUM },
 });
 
-/** Bevelled metal panel with a chrome caption bar. */
+/** Content card with an optional header row. */
 export function Panel({
   title,
   right,
@@ -41,32 +44,31 @@ export function Panel({
   return (
     <View style={[styles.panel, style]}>
       {title ? (
-        <LinearGradient colors={[C.chromeTop, C.chromeBottom]} style={styles.caption}>
-          <Text style={styles.captionText} numberOfLines={1}>
+        <View style={[styles.header, !pad && { paddingBottom: 12 }]}>
+          <Text style={styles.headerText} numberOfLines={1}>
             {title}
           </Text>
           {right}
-        </LinearGradient>
+        </View>
       ) : null}
-      <LinearGradient colors={[C.panelTop, C.panelBottom]} style={pad ? styles.panelBody : undefined}>
-        {children}
-      </LinearGradient>
+      <View style={pad ? styles.panelBody : undefined}>{children}</View>
     </View>
   );
 }
 
-type Tone = 'blue' | 'steel' | 'red';
-const TONES: Record<Tone, [string, string, string]> = {
-  blue: ['#6cb8ff', '#1f7ae6', '#0f4fb0'],
-  steel: ['#7c8a9c', '#4a5665', '#2d3540'],
-  red: ['#ff8c80', '#d93a2c', '#8f1a10'],
+type Tone = 'primary' | 'secondary' | 'danger' | 'ghost';
+const TONES: Record<Tone, { bg: string; fg: string }> = {
+  primary: { bg: C.accent, fg: C.onAccent },
+  secondary: { bg: C.surface3, fg: C.text },
+  danger: { bg: C.redSoft, fg: C.red },
+  ghost: { bg: 'transparent', fg: C.dim },
 };
 
-/** Glossy "gel" push button. */
-export function GelButton({
+/** Button with a spring press response. */
+export function Button({
   label,
   onPress,
-  tone = 'blue',
+  tone = 'primary',
   small,
   disabled,
   style,
@@ -78,42 +80,70 @@ export function GelButton({
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const [scale] = useState(() => new Animated.Value(1));
+  const to = (v: number) => Animated.spring(scale, { toValue: v, speed: 40, bounciness: 6, useNativeDriver: true }).start();
+  const t = TONES[tone];
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => to(0.96)}
+      onPressOut={() => to(1)}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.gel, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}>
-      <LinearGradient colors={TONES[tone]} locations={[0, 0.5, 1]} style={[styles.gelFill, small && styles.gelSmall]}>
-        <LinearGradient colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0.04)']} style={styles.gelGloss} />
-        <Text style={[styles.gelText, small && { fontSize: 9 }]} numberOfLines={1}>
+      style={style}>
+      <Animated.View
+        style={[
+          styles.button,
+          small && styles.buttonSmall,
+          { backgroundColor: t.bg, opacity: disabled ? 0.4 : 1, transform: [{ scale }] },
+        ]}>
+        <Text style={[styles.buttonText, small && { fontSize: 13 }, { color: t.fg }]} numberOfLines={1}>
           {label}
         </Text>
-      </LinearGradient>
+      </Animated.View>
     </Pressable>
   );
 }
 
-/** Amber LCD readout for a primary figure. */
-export function Lcd({ label, value, unit, color = C.amber, flex }: { label: string; value: string; unit?: string; color?: string; flex?: number }) {
+/** Key figure: large tabular number with unit and label. */
+export function Stat({
+  label,
+  value,
+  unit,
+  color = C.text,
+  flex,
+  hint,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  color?: string;
+  flex?: number;
+  hint?: string;
+}) {
   return (
-    <View style={[styles.lcd, flex !== undefined && { flex }]}>
+    <View style={[styles.stat, flex !== undefined && { flex }]}>
       <Text style={T.label}>{label}</Text>
-      <View style={styles.lcdRow}>
-        <Text style={[styles.lcdValue, { color, textShadowColor: color }]} numberOfLines={1} adjustsFontSizeToFit>
+      <View style={styles.statRow}>
+        <Text style={[styles.statValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
           {value}
         </Text>
-        {unit ? <Text style={[styles.lcdUnit, { color }]}>{unit}</Text> : null}
+        {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
       </View>
+      {hint ? (
+        <Text style={T.small} numberOfLines={1}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 export function Badge({ text, color }: { text: string; color: string }) {
   return (
-    <View style={[styles.badge, { borderColor: color }]}>
-      <View style={[styles.led, { backgroundColor: color, shadowColor: color }]} />
+    <View style={[styles.badge, { backgroundColor: color + '1f' }]}>
+      <View style={[styles.dot, { backgroundColor: color }]} />
       <Text style={[styles.badgeText, { color }]}>{text}</Text>
     </View>
   );
@@ -133,26 +163,30 @@ export function Segmented<V extends string>({
   const items = options.map((o) => {
     const on = o.value === value;
     return (
-      <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-        <LinearGradient colors={on ? ['#6cb8ff', '#0f4fb0'] : [C.chromeTop, C.chromeBottom]} style={styles.seg}>
-          <Text style={[styles.segText, on && { color: '#fff' }]}>{o.label}</Text>
-        </LinearGradient>
+      <Pressable
+        key={o.value}
+        onPress={() => onChange(o.value)}
+        accessibilityRole="tab"
+        accessibilityLabel={o.label}
+        accessibilityState={{ selected: on }}
+        style={[styles.chip, on && styles.chipOn]}>
+        <Text style={[styles.chipText, on && styles.chipTextOn]}>{o.label}</Text>
       </Pressable>
     );
   });
   return scroll ? (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segRow}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
       {items}
     </ScrollView>
   ) : (
-    <View style={[styles.segRow, { flexWrap: 'wrap' }]}>{items}</View>
+    <View style={[styles.chipRow, { flexWrap: 'wrap' }]}>{items}</View>
   );
 }
 
 export function Row({ children, onPress, last }: { children: ReactNode; onPress?: () => void; last?: boolean }) {
   const content = <View style={[styles.row, last && { borderBottomWidth: 0 }]}>{children}</View>;
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && { backgroundColor: 'rgba(255,255,255,0.05)' }}>
+    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.6 }}>
       {content}
     </Pressable>
   ) : (
@@ -161,11 +195,20 @@ export function Row({ children, onPress, last }: { children: ReactNode; onPress?
 }
 
 export function Empty({ text }: { text: string }) {
-  return <Text style={[T.dim, { paddingVertical: 14, textAlign: 'center' }]}>{text}</Text>;
+  return <Text style={[T.dim, { paddingVertical: 16, textAlign: 'center' }]}>{text}</Text>;
 }
 
 export function Input(props: React.ComponentProps<typeof TextInput>) {
-  return <TextInput placeholderTextColor={C.faint} {...props} style={[styles.input, props.multiline && styles.inputMulti, props.style]} />;
+  const [focus, setFocus] = useState(false);
+  return (
+    <TextInput
+      placeholderTextColor={C.faint}
+      {...props}
+      onFocus={(e) => (setFocus(true), props.onFocus?.(e))}
+      onBlur={(e) => (setFocus(false), props.onBlur?.(e))}
+      style={[styles.input, props.multiline && styles.inputMulti, focus && { borderColor: C.accent }, props.style]}
+    />
+  );
 }
 
 export interface FieldDef {
@@ -179,19 +222,6 @@ export interface FieldDef {
 
 type Values = Record<string, string | number | boolean | undefined>;
 
-/**
- * Generic record editor. Numbers are edited as text and parsed on save;
- * an empty number field is returned as undefined.
- */
-export function FormModal(props: FormProps & { visible: boolean }) {
-  return (
-    <Modal visible={props.visible} transparent animationType="fade" onRequestClose={props.onClose}>
-      {/* Mounted per opening, so the draft is initialised from `initial` each time. */}
-      {props.visible ? <FormBody {...props} /> : null}
-    </Modal>
-  );
-}
-
 interface FormProps {
   title: string;
   fields: FieldDef[];
@@ -201,14 +231,21 @@ interface FormProps {
   onClose: () => void;
 }
 
-function FormBody({
-  title,
-  fields,
-  initial,
-  onSave,
-  onDelete,
-  onClose,
-}: FormProps) {
+/**
+ * Generic record editor shown as a bottom sheet. Numbers are edited as text and parsed on save;
+ * an empty number field is returned as undefined.
+ */
+export function FormModal(props: FormProps & { visible: boolean }) {
+  return (
+    <Modal visible={props.visible} transparent animationType="slide" onRequestClose={props.onClose}>
+      {/* Mounted per opening, so the draft is initialised from `initial` each time. */}
+      {props.visible ? <FormBody {...props} /> : null}
+    </Modal>
+  );
+}
+
+function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormProps) {
+  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<Record<string, string | boolean>>(() => {
     const d: Record<string, string | boolean> = {};
     for (const f of fields) {
@@ -248,114 +285,98 @@ function FormBody({
   };
 
   return (
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.scrim}>
-        <View style={styles.dialog}>
-          <Panel title={title} pad={false}>
-            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ padding: 14, gap: 12 }} keyboardShouldPersistTaps="handled">
-              {fields.map((f) => (
-                <View key={f.key} style={{ gap: 5 }}>
-                  <Text style={T.label}>{f.label}</Text>
-                  {f.kind === 'select' ? (
-                    <Segmented options={f.options ?? []} value={String(draft[f.key] ?? '')} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
-                  ) : f.kind === 'toggle' ? (
-                    <Segmented
-                      options={[
-                        { value: 'yes', label: 'Yes' },
-                        { value: 'no', label: 'No' },
-                      ]}
-                      value={draft[f.key] ? 'yes' : 'no'}
-                      onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v === 'yes' }))}
-                    />
-                  ) : (
-                    <Input
-                      accessibilityLabel={f.label}
-                      value={String(draft[f.key] ?? '')}
-                      onChangeText={(t) => setDraft((d) => ({ ...d, [f.key]: t }))}
-                      placeholder={f.placeholder ?? (f.kind === 'date' ? 'YYYY-MM-DD' : '')}
-                      keyboardType={f.kind === 'number' ? 'decimal-pad' : 'default'}
-                      multiline={f.kind === 'multiline'}
-                      autoCapitalize="none"
-                      style={f.kind === 'number' || f.kind === 'date' ? { fontFamily: F.mono } : undefined}
-                    />
-                  )}
-                </View>
-              ))}
-              {error ? <Text style={[T.dim, { color: C.red }]}>{error}</Text> : null}
-            </ScrollView>
-            <View style={styles.dialogButtons}>
-              {onDelete ? <GelButton label="Delete" tone="red" small onPress={onDelete} /> : null}
-              <View style={{ flex: 1 }} />
-              <GelButton label="Cancel" tone="steel" small onPress={onClose} />
-              <GelButton label="Save" small onPress={save} />
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.scrim}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]}>
+        <View style={styles.grabber} />
+        <Text style={[T.title, { fontSize: 19, paddingHorizontal: 20 }]}>{title}</Text>
+        <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+          {fields.map((f) => (
+            <View key={f.key} style={{ gap: 6 }}>
+              <Text style={T.label}>{f.label}</Text>
+              {f.kind === 'select' ? (
+                <Segmented options={f.options ?? []} value={String(draft[f.key] ?? '')} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
+              ) : f.kind === 'toggle' ? (
+                <Segmented
+                  options={[
+                    { value: 'yes', label: 'Yes' },
+                    { value: 'no', label: 'No' },
+                  ]}
+                  value={draft[f.key] ? 'yes' : 'no'}
+                  onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v === 'yes' }))}
+                />
+              ) : (
+                <Input
+                  accessibilityLabel={f.label}
+                  value={String(draft[f.key] ?? '')}
+                  onChangeText={(t) => setDraft((d) => ({ ...d, [f.key]: t }))}
+                  placeholder={f.placeholder ?? (f.kind === 'date' ? 'YYYY-MM-DD' : '')}
+                  keyboardType={f.kind === 'number' ? 'decimal-pad' : 'default'}
+                  multiline={f.kind === 'multiline'}
+                  autoCapitalize="none"
+                  style={f.kind === 'number' || f.kind === 'date' ? NUM : undefined}
+                />
+              )}
             </View>
-          </Panel>
+          ))}
+          {error ? <Text style={[T.dim, { color: C.red }]}>{error}</Text> : null}
+        </ScrollView>
+        <View style={styles.sheetButtons}>
+          {onDelete ? <Button label="Delete" tone="danger" small onPress={onDelete} /> : null}
+          <View style={{ flex: 1 }} />
+          <Button label="Cancel" tone="ghost" small onPress={onClose} />
+          <Button label="Save" small onPress={save} />
         </View>
-      </KeyboardAvoidingView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: C.edgeDark,
-    borderTopColor: C.edgeLight,
-    borderLeftColor: C.line,
-    overflow: 'hidden',
-    backgroundColor: C.panelBottom,
-  },
-  caption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    minHeight: 30,
-    borderBottomWidth: 1,
-    borderBottomColor: C.edgeDark,
-    gap: 8,
-  },
-  captionText: { flex: 1, color: '#f2f5f8', fontFamily: F.display, fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase' },
-  panelBody: { padding: 12 },
-  gel: { borderRadius: 999, borderWidth: 1, borderColor: C.edgeDark, overflow: 'hidden' },
-  gelFill: { minHeight: 42, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  gelSmall: { minHeight: 30, paddingHorizontal: 12 },
-  gelGloss: { position: 'absolute', top: 1, left: 6, right: 6, height: '46%', borderRadius: 999 },
-  gelText: { color: '#fff', fontFamily: F.display, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' },
-  lcd: {
-    backgroundColor: C.lcdBg,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#000',
-    borderBottomColor: C.line,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    gap: 2,
-    minWidth: 0,
-  },
-  lcdRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  lcdValue: { fontFamily: F.monoBold, fontSize: 22, flexShrink: 1, textShadowRadius: 7, textShadowOffset: { width: 0, height: 0 } },
-  lcdUnit: { fontFamily: F.mono, fontSize: 11, opacity: 0.8 },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: 'rgba(0,0,0,0.35)' },
-  badgeText: { fontFamily: F.display, fontSize: 8, letterSpacing: 1.2, textTransform: 'uppercase' },
-  led: { width: 7, height: 7, borderRadius: 4, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
-  segRow: { flexDirection: 'row', gap: 6 },
-  seg: { paddingHorizontal: 12, minHeight: 32, justifyContent: 'center', borderRadius: 5, borderWidth: 1, borderColor: C.edgeDark },
-  segText: { color: '#d5dce5', fontFamily: F.display, fontSize: 9, letterSpacing: 1.1, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)' },
+  panel: { borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, gap: 10 },
+  headerText: { flex: 1, color: C.text, fontFamily: F.semibold, fontSize: 15, letterSpacing: -0.1 },
+  panelBody: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 },
+  button: { minHeight: 48, paddingHorizontal: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  buttonSmall: { minHeight: 34, paddingHorizontal: 14, borderRadius: 10 },
+  buttonText: { fontFamily: F.semibold, fontSize: 15, letterSpacing: -0.1 },
+  stat: { backgroundColor: C.surface, borderRadius: 18, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, gap: 4, minWidth: 0 },
+  statRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+  statValue: { fontFamily: F.bold, fontSize: 26, letterSpacing: -0.6, flexShrink: 1, ...NUM },
+  statUnit: { color: C.dim, fontFamily: F.medium, fontSize: 13 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  badgeText: { fontFamily: F.semibold, fontSize: 11, textTransform: 'capitalize' },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  chipRow: { flexDirection: 'row', gap: 8 },
+  chip: { paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 999, backgroundColor: C.surface2 },
+  chipOn: { backgroundColor: C.text },
+  chipText: { color: C.dim, fontFamily: F.semibold, fontSize: 13, textTransform: 'capitalize' },
+  chipTextOn: { color: C.bg },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.borderStrong },
   input: {
-    backgroundColor: C.inputBg,
+    backgroundColor: C.surface2,
     color: C.text,
     borderWidth: 1,
-    borderColor: '#000',
-    borderBottomColor: C.line,
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    minHeight: 40,
+    borderColor: 'transparent',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    minHeight: 46,
     fontSize: 15,
-    fontFamily: F.body,
+    fontFamily: F.regular,
   },
-  inputMulti: { minHeight: 84, paddingVertical: 8, textAlignVertical: 'top' },
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  dialog: { width: '100%', maxWidth: 480 },
-  dialogButtons: { flexDirection: 'row', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: C.edgeDark, alignItems: 'center' },
+  inputMulti: { minHeight: 92, paddingVertical: 12, textAlignVertical: 'top' },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingTop: 10,
+  },
+  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.surface3, alignSelf: 'center', marginBottom: 14 },
+  sheetButtons: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 8, alignItems: 'center' },
 });

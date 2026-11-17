@@ -7,9 +7,10 @@ import { Shell } from '../../components/Shell';
 import { FuelTab, ServiceTab } from '../../components/tabs/FuelService';
 import { AssistantTab, IntelTab } from '../../components/tabs/IntelAssistant';
 import { DocsTab, PartsTab } from '../../components/tabs/PartsDocs';
-import { Badge, Empty, FormModal, GelButton, Lcd, Panel, Row, Segmented, T } from '../../components/ui';
+import { Badge, Empty, FormModal, Button, Stat, Panel, Row, Segmented, T } from '../../components/ui';
 import { Viewer3D } from '../../components/Viewer3D';
 import { describeDue, dueInfo, fmtNum, fuelStats, sortByDue } from '../../lib/calc';
+import { estimateOdometer } from '../../lib/odometer';
 import { confirm } from '../../lib/confirm';
 import { deleteFile, PickedFile, saveFile } from '../../lib/files';
 import { useStore } from '../../lib/store';
@@ -28,9 +29,9 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value'];
 
 export default function VehicleScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const v = useStore((s) => s.vehicles.find((x) => x.id === id));
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(() => (TABS.some((t) => t.value === initialTab) ? (initialTab as Tab) : 'overview'));
 
   if (!v) {
     return (
@@ -43,10 +44,10 @@ export default function VehicleScreen() {
   }
 
   return (
-    <Shell title={[v.year, v.make, v.model].filter(Boolean).join(' ')} back>
-      <Panel title={v.nickname || `${v.make} ${v.model}`} pad={false}>
-        <Viewer3D bodyType={v.bodyType} color={v.color} modelRef={v.modelRef} height={tab === 'overview' ? 250 : 150} />
-      </Panel>
+    <Shell title={v.nickname || `${v.make} ${v.model}`} eyebrow={[v.year, v.make, v.model].filter(Boolean).join(' ')} back>
+      <View style={{ borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border }}>
+        <Viewer3D bodyType={v.bodyType} color={v.color} modelRef={v.modelRef} wrap={v.wrap} height={tab === 'overview' ? 260 : 160} />
+      </View>
       <Segmented options={[...TABS]} value={tab} onChange={setTab} scroll />
       {tab === 'overview' ? <Overview v={v} onTab={setTab} /> : null}
       {tab === 'fuel' ? <FuelTab v={v} /> : null}
@@ -64,7 +65,9 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
   const fuel = useStore((s) => s.fuel);
   const maintenance = useStore((s) => s.maintenance);
   const services = useStore((s) => s.services);
+  const odoLog = useStore((s) => s.odoLog);
   const updateVehicle = useStore((s) => s.updateVehicle);
+  const logOdometer = useStore((s) => s.logOdometer);
   const removeVehicle = useStore((s) => s.removeVehicle);
   const [odo, setOdo] = useState(false);
   const [message, setMessage] = useState('');
@@ -72,7 +75,9 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
 
   const stats = fuelStats(fuel.filter((f) => f.vehicleId === v.id), settings);
   const serviceSpend = services.filter((r) => r.vehicleId === v.id).reduce((a, r) => a + r.cost, 0);
-  const due = sortByDue(maintenance.filter((m) => m.vehicleId === v.id).map((m) => ({ m, due: dueInfo(m, v.odometer) })));
+  const readings = odoLog.filter((r) => r.vehicleId === v.id).sort((a, b) => b.at.localeCompare(a.at));
+  const est = estimateOdometer(readings, v.odometer);
+  const due = sortByDue(maintenance.filter((m) => m.vehicleId === v.id).map((m) => ({ m, due: dueInfo(m, est.estimate, est.perDay) })));
   const attention = due.filter((x) => x.due.state === 'overdue' || x.due.state === 'soon');
   const upcoming = (attention.length ? attention : due.filter((x) => x.due.state === 'ok')).slice(0, 4);
   const specs = Object.entries(v.specs);
@@ -103,34 +108,43 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
 
   return (
     <>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Lcd flex={1.3} label="Odometer" value={fmtNum(v.odometer)} unit={settings.distanceUnit} />
-        <Lcd flex={1} label="Consumption" value={stats.economy === null ? '--.-' : stats.economy.toFixed(1)} unit={stats.economyLabel} color={C.green} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Stat
+          flex={1.3}
+          label="Odometer"
+          value={fmtNum(v.odometer)}
+          unit={settings.distanceUnit}
+          hint={est.perDay !== null ? `≈ ${fmtNum(est.perDay)} ${settings.distanceUnit}/day` : undefined}
+        />
+        <Stat flex={1} label="Consumption" value={stats.economy === null ? '—' : stats.economy.toFixed(1)} unit={stats.economy === null ? undefined : stats.economyLabel} />
       </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Lcd flex={1} label="Fuel spend" value={fmtNum(stats.totalCost, 2)} unit={settings.currency} />
-        <Lcd flex={1} label="Service spend" value={fmtNum(serviceSpend, 2)} unit={settings.currency} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Stat flex={1} label="Fuel spend" value={fmtNum(stats.totalCost, 0)} unit={settings.currency} />
+        <Stat flex={1} label="Service spend" value={fmtNum(serviceSpend, 0)} unit={settings.currency} />
       </View>
-      <GelButton label="Update odometer" tone="steel" onPress={() => setOdo(true)} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Button label="Log odometer" tone="secondary" onPress={() => setOdo(true)} style={{ flex: 1 }} />
+        <Button label="Record drive" tone="secondary" onPress={() => router.push('/trip')} style={{ flex: 1 }} />
+      </View>
 
-      <Panel title={attention.length ? `Needs attention (${attention.length})` : 'Coming up'} right={<GelButton label="Schedule" small onPress={() => onTab('service')} />}>
+      <Panel title={attention.length ? `Needs attention (${attention.length})` : 'Coming up'} right={<Button label="Schedule" tone="ghost" small onPress={() => onTab('service')} />}>
         {upcoming.length === 0 ? <Empty text="Log when each task was last done to start the countdown." /> : null}
         {upcoming.map(({ m, due: d }, i) => (
           <Row key={m.id} last={i === upcoming.length - 1}>
             <Text style={[T.body, { flex: 1 }]} numberOfLines={1}>
               {m.name}
             </Text>
-            <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>{describeDue(d, settings.distanceUnit)}</Text>
+            <Text style={T.small}>{describeDue(d, settings.distanceUnit)}</Text>
             <Badge text={d.state} color={STATE_COLOR[d.state]} />
           </Row>
         ))}
       </Panel>
 
-      <Panel title="Vehicle data" right={<GelButton label="Edit" small onPress={() => router.push(`/vehicle/new?edit=${v.id}`)} />}>
+      <Panel title="Vehicle data" right={<Button label="Edit" tone="ghost" small onPress={() => router.push(`/vehicle/new?edit=${v.id}`)} />}>
         {facts.map(([k, val], i) => (
           <Row key={k} last={i === facts.length - 1 && !specs.length && !v.notes}>
             <Text style={[T.label, { width: 104 }]}>{k}</Text>
-            <Text style={[T.body, { flex: 1, fontFamily: k === 'VIN' || k === 'Plate' ? F.mono : F.body }]} selectable>
+            <Text style={[T.body, { flex: 1, fontFamily: k === 'VIN' || k === 'Plate' ? F.medium : F.regular }]} selectable>
               {val || '—'}
             </Text>
           </Row>
@@ -138,7 +152,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         {v.notes ? <Text style={[T.dim, { marginTop: 8 }]}>{v.notes}</Text> : null}
         {specs.length ? (
           <>
-            <GelButton label={showSpecs ? 'Hide decoded specs' : `Decoded specs (${specs.length})`} tone="steel" small onPress={() => setShowSpecs(!showSpecs)} style={{ alignSelf: 'flex-start', marginTop: 10 }} />
+            <Button label={showSpecs ? 'Hide decoded specs' : `Decoded specs (${specs.length})`} tone="secondary" small onPress={() => setShowSpecs(!showSpecs)} style={{ alignSelf: 'flex-start', marginTop: 10 }} />
             {showSpecs
               ? specs.map(([k, val]) => (
                   <Row key={k}>
@@ -151,19 +165,38 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         ) : null}
       </Panel>
 
+      <Panel title="Odometer history" right={<Button label="Add" tone="ghost" small onPress={() => setOdo(true)} />}>
+        {readings.length === 0 ? <Empty text="No readings yet." /> : null}
+        {readings.slice(0, 6).map((r, i, a) => (
+          <Row key={r.id} last={i === a.length - 1}>
+            <Text style={[T.num, { flex: 1 }]}>
+              {fmtNum(r.odometer)} {settings.distanceUnit}
+            </Text>
+            <Text style={T.small}>
+              {r.at.slice(0, 10)} · {r.source === 'gps' ? 'GPS drive' : r.source}
+            </Text>
+          </Row>
+        ))}
+      </Panel>
+
       <Panel title="3D model">
         <Text style={T.dim}>
           {v.modelRef
-            ? 'Showing your uploaded model.'
-            : `Showing the built-in ${v.bodyType} body. Upload a .glb scan or model of this exact vehicle to replace it.`}
+            ? 'Showing your uploaded .glb model.'
+            : v.wrap
+              ? `Showing the ${v.bodyType} body${v.wrap.shape ? ' fitted to' : ' wrapped with'} your photos.`
+              : `Showing the standard ${v.bodyType} body. Photo wrap turns a side photo of your car into its 3D model, offline.`}
         </Text>
         {message ? <Text style={[T.dim, { color: C.red, marginTop: 6 }]}>{message}</Text> : null}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-          <GelButton label="Upload .glb" small onPress={uploadModel} />
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          {v.bodyType !== 'motorcycle' && !v.modelRef ? (
+            <Button label={v.wrap ? 'Edit photo wrap' : 'Photo wrap'} small onPress={() => router.push(`/vehicle/wrap?id=${v.id}`)} />
+          ) : null}
+          <Button label="Upload .glb" tone="secondary" small onPress={uploadModel} />
           {v.modelRef ? (
-            <GelButton
+            <Button
               label="Use built-in"
-              tone="steel"
+              tone="secondary"
               small
               onPress={() => {
                 deleteFile(v.modelRef!).catch(() => undefined);
@@ -174,14 +207,15 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         </View>
       </Panel>
 
-      <GelButton
+      <Button
         label="Remove vehicle"
-        tone="red"
+        tone="danger"
         onPress={() =>
           confirm('Remove vehicle', `${v.nickname || v.model} and all of its logs, parts and documents will be deleted from this device.`, () => {
             const s = useStore.getState();
             s.docs.filter((d) => d.vehicleId === v.id).forEach((d) => deleteFile(d.fileRef).catch(() => undefined));
             if (v.modelRef) deleteFile(v.modelRef).catch(() => undefined);
+            [v.wrap?.side, v.wrap?.front, v.wrap?.rear].forEach((w) => w && deleteFile(w.ref).catch(() => undefined));
             removeVehicle(v.id);
             router.replace('/');
           })
@@ -192,10 +226,10 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         visible={odo}
         title="Odometer"
         fields={[{ key: 'odometer', label: `Current reading (${settings.distanceUnit})`, kind: 'number', required: true }]}
-        initial={{ odometer: v.odometer }}
+        initial={{ odometer: undefined }}
         onClose={() => setOdo(false)}
         onSave={(x) => {
-          updateVehicle(v.id, { odometer: x.odometer as number });
+          logOdometer(v.id, x.odometer as number, 'manual');
           setOdo(false);
         }}
       />

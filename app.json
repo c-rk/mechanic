@@ -11,7 +11,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#12161b",
+        "backgroundColor": "#0A0B0D",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -27,8 +27,32 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Bay One measures the distance you drive to keep your odometer and service schedule up to date, including while the screen is off during a recorded drive.",
+          "locationWhenInUsePermission": "Bay One measures the distance you drive to keep your odometer up to date.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bay One uses photos of your vehicle to build its 3D model on this device.",
+          "cameraPermission": "Bay One uses the camera to photograph your vehicle for its 3D model."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ]
     ],
-    "scheme": "bayone"
+    "scheme": "bayone",
+    "backgroundColor": "#0A0B0D"
   }
 }

@@ -1,37 +1,33 @@
-import { Platform } from 'react-native';
-
-/** Early-2000s instrument-panel palette: gunmetal, brushed chrome, amber LCD, gel blue. */
+/** Dark, low-contrast surfaces with a single accent; numbers set in tabular figures. */
 export const C = {
-  bg0: '#0b0e12',
-  bg1: '#161b22',
-  panelTop: '#2b333e',
-  panelBottom: '#1a2028',
-  chromeTop: '#59677a',
-  chromeBottom: '#2a323d',
-  edgeLight: '#6b7a8e',
-  edgeDark: '#07090c',
-  line: '#364150',
-  text: '#eef2f6',
-  dim: '#93a1b3',
-  faint: '#5d6a7a',
-  blue: '#3a9bff',
-  blueDeep: '#0f4fb0',
-  amber: '#ffb629',
-  lcdBg: '#120d02',
-  green: '#5fe08a',
-  red: '#ff5a4d',
-  yellow: '#ffd24a',
-  inputBg: '#0c1015',
+  bg: '#0A0B0D',
+  surface: '#121418',
+  surface2: '#191C21',
+  surface3: '#22262C',
+  border: 'rgba(255,255,255,0.07)',
+  borderStrong: 'rgba(255,255,255,0.14)',
+  text: '#F3F4F6',
+  dim: '#9CA3AD',
+  faint: '#5E656F',
+  accent: '#7B93FF',
+  accentStrong: '#5A76F5',
+  accentSoft: 'rgba(123,147,255,0.14)',
+  onAccent: '#FFFFFF',
+  green: '#3DD68C',
+  yellow: '#F5B941',
+  red: '#FF6161',
+  redSoft: 'rgba(255,97,97,0.12)',
 };
 
 export const F = {
-  display: 'Michroma_400Regular',
-  mono: 'B612_400Regular',
-  monoBold: 'B612_700Bold',
-  body: Platform.select({ web: 'Tahoma, Verdana, "Lucida Grande", sans-serif', default: undefined }) as
-    | string
-    | undefined,
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
 };
+
+/** Spread into any Text style that shows figures, so digits do not shift width. */
+export const NUM = { fontVariant: ['tabular-nums' as const] };
 
 export const STATE_COLOR = { overdue: C.red, soon: C.yellow, ok: C.green, unknown: C.faint } as const;
 

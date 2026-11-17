@@ -46,3 +46,9 @@ export async function shareText(filename: string, text: string): Promise<void> {
 export async function readText(file: PickedFile): Promise<string> {
   return file.file ? file.file.text() : (await fetch(file.uri)).text();
 }
+
+export async function readBytes(ref: string): Promise<Uint8Array> {
+  const blob = ref.startsWith('idb:') ? await get<Blob>(ref, blobs) : await (await fetch(ref)).blob();
+  if (!blob) throw new Error('File is missing from device storage');
+  return new Uint8Array(await blob.arrayBuffer());
+}

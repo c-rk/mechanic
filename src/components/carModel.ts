@@ -1,53 +1,8 @@
 import * as THREE from 'three';
 
-import type { BodyType } from '../lib/types';
-
-type P = [number, number];
-
-interface Spec {
-  length: number;
-  width: number;
-  wheelR: number;
-  axle: number;
-  clearance: number;
-  /** Upper outline of the lower body, rear bumper to front bumper (x forward, y up, metres). */
-  top: P[];
-  /** Greenhouse outline, rear base to front base. */
-  cabin: P[];
-}
-
-const SPECS: Record<Exclude<BodyType, 'motorcycle'>, Spec> = {
-  sedan: {
-    length: 4.6, width: 1.8, wheelR: 0.33, axle: 1.36, clearance: 0.2,
-    top: [[-2.3, 0.56], [-2.24, 0.9], [-1.35, 0.97], [0.9, 0.94], [2.0, 0.78], [2.3, 0.56]],
-    cabin: [[-1.55, 0.95], [-0.85, 1.4], [0.2, 1.43], [1.0, 0.93]],
-  },
-  coupe: {
-    length: 4.4, width: 1.82, wheelR: 0.34, axle: 1.3, clearance: 0.16,
-    top: [[-2.2, 0.52], [-2.14, 0.86], [-1.3, 0.9], [0.75, 0.88], [1.95, 0.7], [2.2, 0.5]],
-    cabin: [[-1.6, 0.88], [-0.5, 1.26], [0.15, 1.27], [0.9, 0.86]],
-  },
-  hatchback: {
-    length: 4.1, width: 1.76, wheelR: 0.32, axle: 1.28, clearance: 0.19,
-    top: [[-2.05, 0.56], [-2.02, 0.95], [0.75, 0.93], [1.75, 0.78], [2.05, 0.56]],
-    cabin: [[-2.0, 0.94], [-1.62, 1.44], [0.1, 1.47], [0.9, 0.92]],
-  },
-  suv: {
-    length: 4.7, width: 1.9, wheelR: 0.38, axle: 1.42, clearance: 0.28,
-    top: [[-2.35, 0.68], [-2.32, 1.1], [0.95, 1.08], [2.1, 0.97], [2.35, 0.7]],
-    cabin: [[-2.28, 1.09], [-2.0, 1.7], [0.2, 1.73], [1.05, 1.07]],
-  },
-  pickup: {
-    length: 5.4, width: 1.95, wheelR: 0.4, axle: 1.75, clearance: 0.3,
-    top: [[-2.7, 0.72], [-2.7, 1.16], [-0.55, 1.16], [1.2, 1.1], [2.45, 1.0], [2.7, 0.74]],
-    cabin: [[-0.55, 1.15], [-0.45, 1.78], [0.6, 1.8], [1.28, 1.09]],
-  },
-  van: {
-    length: 5.0, width: 1.95, wheelR: 0.36, axle: 1.6, clearance: 0.24,
-    top: [[-2.5, 0.6], [-2.5, 1.1], [1.6, 1.05], [2.35, 0.9], [2.5, 0.6]],
-    cabin: [[-2.48, 1.09], [-2.42, 1.93], [1.2, 1.95], [1.95, 1.04]],
-  },
-};
+import { SPECS, type BodySpec, type CarBody } from '../lib/bodySpecs';
+import type { BodyType, WrapShape } from '../lib/types';
+import { applyWrap, type WrapTextures } from './wrapMaterial';
 
 function extrude(shape: THREE.Shape, width: number, bevel: number) {
   const depth = Math.max(0.01, width - bevel * 2);
@@ -97,7 +52,7 @@ function wheel(r: number, w: number, m: ReturnType<typeof materials>) {
   return g;
 }
 
-function buildCar(spec: Spec, color: string) {
+function buildCar(spec: BodySpec, color: string, photo: boolean) {
   const m = materials(color);
   const car = new THREE.Group();
   const { width: W, wheelR: R, axle, clearance: c } = spec;
@@ -138,15 +93,19 @@ function buildCar(spec: Spec, color: string) {
       const w = wheel(R, 0.24, m);
       w.position.set(sx * axle, R, sz * (W / 2 - 0.13));
       car.add(w);
+      // Lamps and grille are drawn by the photo when one is wrapped on.
+      if (photo) continue;
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, W * 0.2), sx > 0 ? m.head : m.tail);
       const end = sx > 0 ? last : first;
       lamp.position.set(end[0] - sx * 0.02, end[1] + 0.06, sz * W * 0.33);
       car.add(lamp);
     }
   }
-  const grille = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, W * 0.42), m.dark);
-  grille.position.set(last[0] + 0.01, last[1] - 0.05, 0);
-  car.add(grille);
+  if (!photo) {
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, W * 0.42), m.dark);
+    grille.position.set(last[0] + 0.01, last[1] - 0.05, 0);
+    car.add(grille);
+  }
   return car;
 }
 
@@ -192,11 +151,106 @@ function buildMotorcycle(color: string) {
   return g;
 }
 
-/** Procedural stand-in model for a body type. Returns the group and its overall length. */
-export function buildVehicle(bodyType: BodyType, color: string): { object: THREE.Group; length: number } {
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * Body extruded from the roofline fitted to the user's side photo. The single extrusion is then
+ * shaped in plan and section: the greenhouse narrows above the beltline (tumblehome) and the
+ * nose and tail round off, so the photo-textured slab reads as a car body rather than a cut-out.
+ */
+function buildFitted(spec: BodySpec, fit: WrapShape, color: string) {
+  const m = materials(color);
+  const car = new THREE.Group();
+  const W = spec.width;
+  const R = fit.wheelR;
+  const A = spec.axle;
+  const c = fit.clearance;
+  const arch = R * 1.15;
+
+  // Outline with rounded bumper corners; the photo's own silhouette supplies the rest.
+  const r = 0.16;
+  const pts = fit.profile.filter(([x]) => x > fit.xRear + r && x < fit.xFront - r);
+  const yRear = pts[0]?.[1] ?? c + 0.6;
+  const yFront = pts[pts.length - 1]?.[1] ?? c + 0.6;
+  const shape = new THREE.Shape();
+  shape.moveTo(fit.xRear + r, c);
+  shape.quadraticCurveTo(fit.xRear, c, fit.xRear, c + r);
+  shape.lineTo(fit.xRear, Math.max(c + r, yRear - r));
+  shape.quadraticCurveTo(fit.xRear, yRear, fit.xRear + r, yRear);
+  for (const [x, y] of pts) shape.lineTo(x, y);
+  shape.lineTo(fit.xFront - r, yFront);
+  shape.quadraticCurveTo(fit.xFront, yFront, fit.xFront, Math.max(c + r, yFront - r));
+  shape.lineTo(fit.xFront, c + r);
+  shape.quadraticCurveTo(fit.xFront, c, fit.xFront - r, c);
+  for (const wx of [A, -A]) {
+    shape.lineTo(wx + arch, c);
+    shape.lineTo(wx + arch, R);
+    shape.absarc(wx, R, arch, 0, Math.PI, false);
+    shape.lineTo(wx - arch, c);
+  }
+  shape.closePath();
+  const geo = extrude(shape, W, 0.09);
+
+  const top = Math.max(...fit.profile.map((p) => p[1]));
+  const belt = c + (top - c) * 0.56;
+  const mid = (fit.xFront + fit.xRear) / 2;
+  const half = (fit.xFront - fit.xRear) / 2;
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const tumble = 1 - 0.16 * smoothstep(belt, top, y);
+    // Round the nose and tail in plan view.
+    const ends = 1 - 0.24 * Math.pow(smoothstep(0.55, 1, Math.abs(x - mid) / half), 1.6);
+    pos.setZ(i, pos.getZ(i) * tumble * ends);
+  }
+  pos.needsUpdate = true;
+  car.add(new THREE.Mesh(geo, m.paint));
+
+  for (const sx of [1, -1]) {
+    for (const sz of [1, -1]) {
+      const w = wheel(R, 0.24, m);
+      w.position.set(sx * A, R, sz * (W / 2 - 0.13));
+      car.add(w);
+    }
+  }
+  return car;
+}
+
+/** Moves every mesh's transform into its geometry so that local position equals car space. */
+function bake(root: THREE.Group) {
+  root.updateMatrixWorld(true);
+  const out = new THREE.Group();
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const geo = (o.geometry as THREE.BufferGeometry).clone().applyMatrix4(o.matrixWorld);
+    out.add(new THREE.Mesh(geo, o.material));
+  });
+  return out;
+}
+
+export interface VehicleOptions {
+  /** Body shape fitted to a side photo; ignored for motorcycles. */
+  fit?: WrapShape;
+  /** Photo textures projected onto the body. */
+  wrap?: WrapTextures;
+}
+
+/** Procedural model for a body type, optionally fitted to and wrapped with the owner's photos. */
+export function buildVehicle(bodyType: BodyType, color: string, opts: VehicleOptions = {}): { object: THREE.Group; length: number } {
   if (bodyType === 'motorcycle') return { object: buildMotorcycle(color), length: 2.1 };
-  const spec = SPECS[bodyType];
-  return { object: buildCar(spec, color), length: spec.length };
+  const spec = SPECS[bodyType as CarBody];
+  const photo = Boolean(opts.wrap);
+  let object = opts.fit ? buildFitted(spec, opts.fit, color) : buildCar(spec, color, photo);
+  const length = opts.fit ? opts.fit.xFront - opts.fit.xRear : spec.length;
+  if (opts.wrap) {
+    object = bake(object);
+    applyWrap(object, opts.wrap);
+  }
+  return { object, length };
 }
 
 /** Centres an imported model on the turntable, rests it on the floor and reports its length. */

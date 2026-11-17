@@ -4,12 +4,21 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { fmtMoney } from '../../lib/calc';
+import { checkPrice } from '../../lib/proxy';
 import { confirm } from '../../lib/confirm';
 import { deleteFile, openFile, PickedFile, saveFile } from '../../lib/files';
 import { today, uid, useStore } from '../../lib/store';
 import { C, F } from '../../lib/theme';
 import type { Doc, DocCategory, Part, PartStatus, Vehicle } from '../../lib/types';
-import { Badge, Empty, FieldDef, FormModal, GelButton, Panel, Row, T } from '../ui';
+import { Badge, Empty, FieldDef, FormModal, Button, Panel, Row, T } from '../ui';
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'shop';
+  }
+};
 
 const STATUS_COLOR: Record<PartStatus, string> = { wishlist: C.dim, ordered: C.yellow, installed: C.green };
 
@@ -20,6 +29,34 @@ export function PartsTab({ v }: { v: Vehicle }) {
   const remove = useStore((s) => s.remove);
   const [editing, setEditing] = useState<{ item?: Part } | null>(null);
   const [pricing, setPricing] = useState<Part | null>(null);
+  const [checking, setChecking] = useState<string | null>(null);
+  const [priceNote, setPriceNote] = useState('');
+  const proxyUrl = useStore((s) => s.settings.proxyUrl);
+
+  /** Reads the price from the shop page through the data proxy and appends it to the history. */
+  const fetchPrice = async (p: Part) => {
+    setChecking(p.id);
+    setPriceNote('');
+    try {
+      const info = await checkPrice(p.url);
+      if (info.price === undefined) {
+        setPriceNote(`No price found on ${hostOf(p.url)}; add it by hand with + Price.`);
+        return;
+      }
+      const latest = useStore.getState().parts.find((x) => x.id === p.id) ?? p;
+      upsert('parts', {
+        ...latest,
+        prices: [...latest.prices, { date: today(), price: info.price, vendor: hostOf(info.url ?? p.url) + (info.currency ? ` (${info.currency})` : '') }],
+      });
+    } catch (e) {
+      setPriceNote(`${p.name}: ${(e as Error).message}`);
+    } finally {
+      setChecking(null);
+    }
+  };
+  const checkAll = async () => {
+    for (const p of parts.filter((x) => x.url)) await fetchPrice(p);
+  };
 
   const parts = all.filter((p) => p.vehicleId === v.id);
   const fields: FieldDef[] = [
@@ -39,10 +76,19 @@ export function PartsTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel title="Parts & fluids" right={<GelButton label="Add" small onPress={() => setEditing({})} />}>
+      <Panel
+        title="Parts & fluids"
+        right={
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {proxyUrl && parts.some((p) => p.url) ? <Button label="Check all" tone="ghost" small disabled={checking !== null} onPress={checkAll} /> : null}
+            <Button label="Add" small onPress={() => setEditing({})} />
+          </View>
+        }>
         <Text style={[T.dim, { marginBottom: 4 }]}>
-          Save parts you have verified fit this vehicle. Record a price each time you check a shop to build its history.
+          Save parts you have verified fit this vehicle. With a shop link, Check price reads the current price from the page
+          and adds it to the history.
         </Text>
+        {priceNote ? <Text style={[T.dim, { color: C.yellow, marginBottom: 4 }]}>{priceNote}</Text> : null}
         {parts.length === 0 ? <Empty text="No parts saved." /> : null}
         {parts.map((p, i) => {
           const prices = [...p.prices].sort((a, b) => a.date.localeCompare(b.date));
@@ -52,18 +98,21 @@ export function PartsTab({ v }: { v: Vehicle }) {
             <Row key={p.id} onPress={() => setEditing({ item: p })} last={i === parts.length - 1}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={T.body}>{p.name}</Text>
-                <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>
+                <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]}>
                   {[p.brand, p.partNumber, p.category].filter(Boolean).join('  ·  ') || 'no details'}
                 </Text>
                 {latest ? (
-                  <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>
-                    <Text style={{ color: C.amber }}>{fmtMoney(latest.price, currency)}</Text> {latest.vendor} {latest.date}
+                  <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]}>
+                    <Text style={{ color: C.accent }}>{fmtMoney(latest.price, currency)}</Text> {latest.vendor} {latest.date}
                     {prices.length > 1 && low !== null ? `  ·  low ${fmtMoney(low, currency)} of ${prices.length}` : ''}
                   </Text>
                 ) : null}
                 <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
-                  <GelButton label="+ Price" tone="steel" small onPress={() => setPricing(p)} />
-                  {p.url ? <GelButton label="Shop" tone="steel" small onPress={() => Linking.openURL(p.url)} /> : null}
+                  <Button label="+ Price" tone="secondary" small onPress={() => setPricing(p)} />
+                  {p.url ? <Button label="Shop" tone="secondary" small onPress={() => Linking.openURL(p.url)} /> : null}
+                  {p.url && proxyUrl ? (
+                    <Button label={checking === p.id ? 'Checking…' : 'Check price'} tone="secondary" small disabled={checking !== null} onPress={() => fetchPrice(p)} />
+                  ) : null}
                 </View>
               </View>
               <Badge text={p.status} color={STATUS_COLOR[p.status]} />
@@ -133,7 +182,7 @@ export function DocsTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel title="Document folder" right={<GelButton label="Add file" small onPress={pick} />}>
+      <Panel title="Document folder" right={<Button label="Add file" small onPress={pick} />}>
         <Text style={[T.dim, { marginBottom: 4 }]}>
           Registration, insurance, invoices, manuals. Files are copied into this device&apos;s app storage and are not uploaded.
         </Text>
@@ -153,11 +202,11 @@ export function DocsTab({ v }: { v: Vehicle }) {
                     <Text style={T.body} numberOfLines={1}>
                       {d.name}
                     </Text>
-                    <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>
+                    <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]}>
                       {d.addedAt.slice(0, 10)}  {fmtSize(d.size)}
                     </Text>
                   </View>
-                  <GelButton label="Edit" tone="steel" small onPress={() => setEditing(d)} />
+                  <Button label="Edit" tone="secondary" small onPress={() => setEditing(d)} />
                 </Row>
               ))}
             </View>

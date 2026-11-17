@@ -48,3 +48,7 @@ export async function shareText(filename: string, text: string): Promise<void> {
 export async function readText(file: PickedFile): Promise<string> {
   return new File(file.uri).text();
 }
+
+export async function readBytes(ref: string): Promise<Uint8Array> {
+  return new File(ref).bytes();
+}

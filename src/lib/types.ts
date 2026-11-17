@@ -4,6 +4,38 @@ export const BODY_TYPES: BodyType[] = ['sedan', 'coupe', 'hatchback', 'suv', 'pi
 
 export type FuelType = 'petrol' | 'diesel' | 'hybrid' | 'electric' | 'other';
 
+export type Pt = [number, number];
+
+/** One photo used for the photo wrap, with the two alignment taps in full-resolution pixels. */
+export interface WrapView {
+  ref: string;
+  width: number;
+  height: number;
+  /** Side: rear wheel centre. Front/rear: one tyre's ground contact. */
+  p1: Pt;
+  /** Side: front wheel centre. Front/rear: the other tyre's ground contact. */
+  p2: Pt;
+  /** Side only: wheel radius in pixels. */
+  radiusPx?: number;
+}
+
+/** Body outline fitted to the side photo (metres, car coordinates). */
+export interface WrapShape {
+  profile: Pt[];
+  xRear: number;
+  xFront: number;
+  clearance: number;
+  wheelR: number;
+}
+
+export interface Wrap {
+  side?: WrapView;
+  front?: WrapView;
+  rear?: WrapView;
+  /** Present when the 3D body follows the photo's silhouette. */
+  shape?: WrapShape;
+}
+
 export interface Vehicle {
   id: string;
   nickname: string;
@@ -21,6 +53,8 @@ export interface Vehicle {
   odometer: number;
   /** File reference of a user-supplied GLB model, if any. */
   modelRef?: string;
+  /** Photo wrap for the built-in body. */
+  wrap?: Wrap;
   /** Raw decoded specification fields (e.g. from the NHTSA VIN decoder). */
   specs: Record<string, string>;
   notes: string;
@@ -123,6 +157,26 @@ export interface ChatMessage {
   ts: string;
 }
 
+export type OdoSource = 'manual' | 'fuel' | 'service' | 'gps';
+
+export interface OdoReading {
+  id: string;
+  vehicleId: string;
+  /** ISO timestamp. */
+  at: string;
+  odometer: number;
+  source: OdoSource;
+}
+
+export interface Trip {
+  id: string;
+  vehicleId: string;
+  start: string;
+  end: string;
+  /** Metres travelled, as measured by GPS. */
+  meters: number;
+}
+
 export type AiProvider = 'anthropic' | 'openai' | 'custom';
 
 export interface Settings {
@@ -133,4 +187,9 @@ export interface Settings {
   aiModel: string;
   /** Base URL for an OpenAI-compatible endpoint (provider "custom"). */
   aiBaseUrl: string;
+  /** Days between odometer reminders; 0 disables them. */
+  odoReminderDays: number;
+  /** Cloudflare Worker that relays public web data (see /worker). Empty disables online collection. */
+  proxyUrl: string;
+  proxyToken: string;
 }

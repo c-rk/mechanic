@@ -10,13 +10,17 @@ import type {
   Doc,
   FuelEntry,
   MaintenanceItem,
+  OdoReading,
+  OdoSource,
   Part,
   Recall,
   SavedLink,
   ServiceRecord,
   Settings,
+  Trip,
   Vehicle,
 } from './types';
+import type { ResearchItem } from './proxy';
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 export const today = () => new Date().toISOString().slice(0, 10);
@@ -44,11 +48,14 @@ export interface Data {
   docs: Doc[];
   links: SavedLink[];
   chat: ChatMessage[];
+  odoLog: OdoReading[];
+  trips: Trip[];
+  research: Record<string, { fetchedAt: string; items: ResearchItem[] }>;
   recalls: Record<string, { fetchedAt: string; items: Recall[] }>;
   settings: Settings;
 }
 
-type Collection = 'fuel' | 'maintenance' | 'services' | 'parts' | 'docs' | 'links' | 'chat';
+type Collection = 'fuel' | 'maintenance' | 'services' | 'parts' | 'docs' | 'links' | 'chat' | 'odoLog' | 'trips';
 
 interface Actions {
   hydrated: boolean;
@@ -58,6 +65,9 @@ interface Actions {
   upsert: <K extends Collection>(key: K, item: Data[K][number]) => void;
   remove: (key: Collection, id: string) => void;
   clearChat: (vehicleId: string) => void;
+  /** Records a reading and raises the vehicle's odometer; manual readings may also lower it (corrections). */
+  logOdometer: (vehicleId: string, odometer: number, source: OdoSource, at?: string) => void;
+  setResearch: (vehicleId: string, items: ResearchItem[]) => void;
   setRecalls: (vehicleId: string, items: Recall[]) => void;
   setSettings: (patch: Partial<Settings>) => void;
   importData: (data: Data) => void;
@@ -72,6 +82,9 @@ const initial: Data = {
   docs: [],
   links: [],
   chat: [],
+  odoLog: [],
+  trips: [],
+  research: {},
   recalls: {},
   settings: {
     distanceUnit: 'km',
@@ -80,6 +93,9 @@ const initial: Data = {
     aiProvider: 'anthropic',
     aiModel: 'claude-opus-5-5',
     aiBaseUrl: '',
+    odoReminderDays: 14,
+    proxyUrl: '',
+    proxyToken: '',
   },
 };
 
@@ -92,9 +108,11 @@ export const useStore = create<Data & Actions>()(
       hydrated: false,
       addVehicle: (v) => {
         const id = uid();
+        const at = new Date().toISOString();
         setState((s) => ({
-          vehicles: [...s.vehicles, { ...v, id, createdAt: new Date().toISOString() }],
+          vehicles: [...s.vehicles, { ...v, id, createdAt: at }],
           maintenance: [...s.maintenance, ...defaultMaintenance(id, v.fuelType, v.bodyType)],
+          odoLog: [...s.odoLog, { id: uid(), vehicleId: id, at, odometer: v.odometer, source: 'manual' }],
         }));
         return id;
       },
@@ -114,6 +132,9 @@ export const useStore = create<Data & Actions>()(
             docs: keep(s.docs),
             links: keep(s.links),
             chat: keep(s.chat),
+            odoLog: keep(s.odoLog),
+            trips: keep(s.trips),
+            research: Object.fromEntries(Object.entries(s.research).filter(([k]) => k !== id)),
             recalls,
           };
         }),
@@ -126,6 +147,18 @@ export const useStore = create<Data & Actions>()(
       remove: (key, id) =>
         setState((s) => ({ [key]: (s[key] as { id: string }[]).filter((x) => x.id !== id) }) as Partial<Data>),
       clearChat: (vehicleId) => setState((s) => ({ chat: s.chat.filter((m) => m.vehicleId !== vehicleId) })),
+      logOdometer: (vehicleId, odometer, source, at = new Date().toISOString()) =>
+        setState((s) => {
+          const v = s.vehicles.find((x) => x.id === vehicleId);
+          if (!v || !Number.isFinite(odometer)) return {};
+          const raise = source === 'manual' || odometer > v.odometer;
+          return {
+            vehicles: raise ? s.vehicles.map((x) => (x.id === vehicleId ? { ...x, odometer } : x)) : s.vehicles,
+            odoLog: [...s.odoLog, { id: uid(), vehicleId, at, odometer, source }],
+          };
+        }),
+      setResearch: (vehicleId, items) =>
+        setState((s) => ({ research: { ...s.research, [vehicleId]: { fetchedAt: new Date().toISOString(), items } } })),
       setRecalls: (vehicleId, items) =>
         setState((s) => ({ recalls: { ...s.recalls, [vehicleId]: { fetchedAt: new Date().toISOString(), items } } })),
       setSettings: (patch) => setState((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -133,7 +166,13 @@ export const useStore = create<Data & Actions>()(
     }),
     {
       name: 'bay-one-data',
-      version: 1,
+      version: 2,
+      // v1 → v2 added odoLog, trips, research and new settings; defaults fill them in.
+      migrate: (persisted) => persisted as Data & Actions,
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<Data>;
+        return { ...current, ...p, settings: { ...current.settings, ...p.settings } };
+      },
       storage: createJSONStorage(() => deviceStorage),
       partialize: (s) => Object.fromEntries(DATA_KEYS.map((k) => [k, s[k]])) as unknown as Data & Actions,
       onRehydrateStorage: () => () => useStore.setState({ hydrated: true }),

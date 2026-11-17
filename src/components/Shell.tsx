@@ -1,17 +1,33 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ReactNode, useEffect, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { C, F } from '../lib/theme';
 
-/** Page frame: brushed-metal title bar, centred column, scrolling body. */
-export function Shell({ title, back, right, children }: { title?: string; back?: boolean; right?: ReactNode; children: ReactNode }) {
+/** Page frame: compact header, centred column, scrolling body that fades in. */
+export function Shell({
+  title,
+  eyebrow = 'Bay One',
+  back,
+  right,
+  children,
+}: {
+  title?: string;
+  eyebrow?: string;
+  back?: boolean;
+  right?: ReactNode;
+  children: ReactNode;
+}) {
   const insets = useSafeAreaInsets();
+  const [fade] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+  }, [fade]);
+
   return (
-    <LinearGradient colors={[C.bg1, C.bg0]} style={{ flex: 1 }}>
-      <LinearGradient colors={['#4d5a6b', '#2a323d', '#1c222a']} style={[styles.bar, { paddingTop: insets.top + 8 }]}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <View style={[styles.bar, { paddingTop: insets.top + 10 }]}>
         <View style={styles.barInner}>
           {back ? (
             <Pressable
@@ -19,37 +35,48 @@ export function Shell({ title, back, right, children }: { title?: string; back?:
               accessibilityRole="button"
               accessibilityLabel="Back"
               hitSlop={10}
-              style={styles.back}>
-              <Text style={styles.backText}>◄</Text>
+              style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}>
+              <Text style={styles.backText}>‹</Text>
             </Pressable>
           ) : null}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.brand}>
-              BAY<Text style={{ color: C.blue }}> ONE</Text>
-            </Text>
+            <Text style={styles.eyebrow}>{eyebrow}</Text>
             {title ? (
-              <Text style={styles.sub} numberOfLines={1}>
+              <Text style={styles.title} numberOfLines={1}>
                 {title}
               </Text>
             ) : null}
           </View>
           {right}
         </View>
-      </LinearGradient>
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled">
+      </View>
+      <Animated.ScrollView
+        style={{ opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}
+        contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 40 }]}
+        keyboardShouldPersistTaps="handled">
         <View style={styles.column}>{children}</View>
-      </ScrollView>
-    </LinearGradient>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
+// Re-exported for screens that need a non-animated scroller.
+export { ScrollView };
+
 const styles = StyleSheet.create({
-  bar: { borderBottomWidth: 1, borderBottomColor: '#000', paddingBottom: 8, paddingHorizontal: 14 },
-  barInner: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', maxWidth: 820, alignSelf: 'center' },
-  back: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: '#000', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  backText: { color: C.text, fontSize: 13 },
-  brand: { color: C.text, fontFamily: F.display, fontSize: 18, letterSpacing: 3 },
-  sub: { color: C.dim, fontFamily: F.mono, fontSize: 11, marginTop: 1 },
-  body: { padding: 12 },
-  column: { width: '100%', maxWidth: 820, alignSelf: 'center', gap: 12 },
+  bar: { paddingBottom: 12, paddingHorizontal: 18 },
+  barInner: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  back: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: C.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backText: { color: C.text, fontSize: 26, lineHeight: 28, marginTop: -2, fontFamily: F.regular },
+  eyebrow: { color: C.faint, fontFamily: F.semibold, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: C.text, fontFamily: F.bold, fontSize: 24, letterSpacing: -0.5, marginTop: 1 },
+  body: { paddingHorizontal: 16, paddingTop: 4 },
+  column: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 14 },
 });

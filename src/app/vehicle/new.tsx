@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Shell } from '../../components/Shell';
-import { GelButton, Input, Panel, Segmented, T } from '../../components/ui';
+import { Button, Input, Panel, Segmented, T } from '../../components/ui';
 import { Viewer3D } from '../../components/Viewer3D';
 import { decodeVin } from '../../lib/nhtsa';
 import { useStore } from '../../lib/store';
@@ -71,7 +71,7 @@ export default function VehicleForm() {
         placeholder={opts.placeholder}
         keyboardType={opts.numeric ? 'decimal-pad' : 'default'}
         autoCapitalize="none"
-        style={opts.mono ? { fontFamily: F.mono } : undefined}
+        style={opts.mono ? { fontFamily: F.medium } : undefined}
       />
     </View>
   );
@@ -92,14 +92,14 @@ export default function VehicleForm() {
               placeholder="17-character VIN"
               autoCapitalize="characters"
               maxLength={17}
-              style={{ flex: 1, fontFamily: F.mono, letterSpacing: 1 }}
+              style={{ flex: 1, fontFamily: F.medium, letterSpacing: 1 }}
             />
-            {busy ? <ActivityIndicator color={C.blue} /> : <GelButton label="Decode" small onPress={decode} />}
+            {busy ? <ActivityIndicator color={C.accent} /> : <Button label="Decode" small onPress={decode} />}
           </View>
           <Text style={T.dim}>
             Decoding sends only the VIN to the public NHTSA database (US-market vehicles). Skip it to enter details by hand.
           </Text>
-          {message ? <Text style={[T.dim, { color: C.amber }]}>{message}</Text> : null}
+          {message ? <Text style={[T.dim, { color: C.accent }]}>{message}</Text> : null}
         </View>
       </Panel>
 
@@ -148,7 +148,7 @@ export default function VehicleForm() {
         </View>
       </Panel>
 
-      <GelButton label={existing ? 'Save changes' : 'Park in garage'} onPress={save} />
+      <Button label={existing ? 'Save changes' : 'Park in garage'} onPress={save} />
     </Shell>
   );
 }
@@ -159,5 +159,5 @@ const styles = StyleSheet.create({
   vinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   paints: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   paint: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: '#000' },
-  paintOn: { borderColor: C.blue, borderWidth: 3 },
+  paintOn: { borderColor: C.accent, borderWidth: 3 },
 });

@@ -10,7 +10,8 @@ import { getApiKey } from '../../lib/secrets';
 import { exportData, uid, useStore } from '../../lib/store';
 import { C, F } from '../../lib/theme';
 import type { LinkKind, SavedLink, Vehicle } from '../../lib/types';
-import { Badge, Empty, FieldDef, FormModal, GelButton, Input, Panel, Row, T } from '../ui';
+import { ResearchPanel } from './Research';
+import { Badge, Empty, FieldDef, FormModal, Button, Input, Panel, Row, T } from '../ui';
 
 const KINDS: LinkKind[] = ['manual', 'forum', 'video', 'reddit', 'blog', 'other'];
 
@@ -49,7 +50,7 @@ export function IntelTab({ v }: { v: Vehicle }) {
     <>
       <Panel
         title={`Safety recalls${cached ? ` (${cached.items.length})` : ''}`}
-        right={busy ? <ActivityIndicator color={C.blue} /> : <GelButton label={cached ? 'Refresh' : 'Check'} small onPress={refresh} />}>
+        right={busy ? <ActivityIndicator color={C.accent} /> : <Button label={cached ? 'Refresh' : 'Check'} small onPress={refresh} />}>
         <Text style={T.dim}>
           {cached
             ? `NHTSA campaigns for ${v.year} ${v.make} ${v.model}, cached ${cached.fetchedAt.slice(0, 10)}. A dealer VIN check confirms which apply to this car.`
@@ -62,7 +63,7 @@ export function IntelTab({ v }: { v: Vehicle }) {
             <View style={{ flex: 1, gap: 4 }}>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 <Badge text={r.campaign} color={C.red} />
-                <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]}>{r.date}</Text>
+                <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]}>{r.date}</Text>
               </View>
               <Text style={T.body}>{r.component}</Text>
               {open === r.campaign ? (
@@ -77,6 +78,8 @@ export function IntelTab({ v }: { v: Vehicle }) {
         ))}
       </Panel>
 
+      <ResearchPanel v={v} />
+
       <Panel title="Research shortcuts">
         <Text style={[T.dim, { marginBottom: 4 }]}>
           Searches pre-filled for this vehicle. They open in the browser; save the useful results below.
@@ -84,23 +87,23 @@ export function IntelTab({ v }: { v: Vehicle }) {
         {researchLinks(v).map((l, i, a) => (
           <Row key={l.url} onPress={() => Linking.openURL(l.url)} last={i === a.length - 1}>
             <Text style={[T.body, { flex: 1 }]}>{l.title}</Text>
-            <Text style={{ color: C.blue }}>►</Text>
+            <Text style={{ color: C.accent }}>►</Text>
           </Row>
         ))}
       </Panel>
 
-      <Panel title="Saved references" right={<GelButton label="Add" small onPress={() => setEditing({})} />}>
+      <Panel title="Saved references" right={<Button label="Add" small onPress={() => setEditing({})} />}>
         {links.length === 0 ? <Empty text="No saved manuals, threads or videos." /> : null}
         {links.map((l, i) => (
           <Row key={l.id} onPress={() => Linking.openURL(l.url)} last={i === links.length - 1}>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={T.body}>{l.title}</Text>
-              <Text style={[T.dim, { fontFamily: F.mono, fontSize: 12 }]} numberOfLines={1}>
+              <Text style={[T.dim, { fontFamily: F.medium, fontSize: 12 }]} numberOfLines={1}>
                 {l.kind}  {l.url}
               </Text>
               {l.notes ? <Text style={T.dim}>{l.notes}</Text> : null}
             </View>
-            <GelButton label="Edit" tone="steel" small onPress={() => setEditing({ item: l })} />
+            <Button label="Edit" tone="secondary" small onPress={() => setEditing({ item: l })} />
           </Row>
         ))}
       </Panel>
@@ -157,7 +160,7 @@ export function AssistantTab({ v }: { v: Vehicle }) {
   return (
     <Panel
       title={`Mechanic · ${settings.aiProvider} ${settings.aiModel}`}
-      right={messages.length ? <GelButton label="Clear" tone="steel" small onPress={() => clearChat(v.id)} /> : undefined}>
+      right={messages.length ? <Button label="Clear" tone="secondary" small onPress={() => clearChat(v.id)} /> : undefined}>
       <Text style={T.dim}>
         Describe a symptom, noise or warning light. Each question is sent with this vehicle&apos;s record directly to your
         AI provider using your key.
@@ -173,14 +176,14 @@ export function AssistantTab({ v }: { v: Vehicle }) {
         ))}
         {busy ? (
           <View style={[styles.bubble, styles.bot, { flexDirection: 'row', gap: 10, alignItems: 'center' }]}>
-            <ActivityIndicator color={C.blue} />
+            <ActivityIndicator color={C.accent} />
             <Text style={T.dim}>Diagnosing…</Text>
           </View>
         ) : null}
         {error ? (
           <View style={{ gap: 8 }}>
             <Text style={[T.dim, { color: C.red }]}>{error}</Text>
-            <GelButton label="Open settings" tone="steel" small onPress={() => router.push('/settings')} style={{ alignSelf: 'flex-start' }} />
+            <Button label="Open settings" tone="secondary" small onPress={() => router.push('/settings')} style={{ alignSelf: 'flex-start' }} />
           </View>
         ) : null}
       </View>
@@ -191,13 +194,13 @@ export function AssistantTab({ v }: { v: Vehicle }) {
         placeholder="e.g. Grinding noise from the front left when braking"
         multiline
       />
-      <GelButton label="Ask" onPress={send} disabled={busy || !draft.trim()} style={{ marginTop: 8 }} />
+      <Button label="Ask" onPress={send} disabled={busy || !draft.trim()} style={{ marginTop: 8 }} />
     </Panel>
   );
 }
 
 const styles = StyleSheet.create({
   bubble: { padding: 10, borderRadius: 6, borderWidth: 1, gap: 4 },
-  user: { backgroundColor: 'rgba(58,155,255,0.12)', borderColor: C.blueDeep, marginLeft: 28 },
-  bot: { backgroundColor: 'rgba(0,0,0,0.35)', borderColor: C.line, marginRight: 28 },
+  user: { backgroundColor: 'rgba(58,155,255,0.12)', borderColor: C.accentStrong, marginLeft: 28 },
+  bot: { backgroundColor: 'rgba(0,0,0,0.35)', borderColor: C.border, marginRight: 28 },
 });

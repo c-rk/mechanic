@@ -1,0 +1,12 @@
+name = "bay-one-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+# Optional secrets (set with `npx wrangler secret put NAME`):
+#   APP_TOKEN            shared token the app sends as x-bayone-token; strongly recommended
+#   YOUTUBE_API_KEY      YouTube Data API v3 key, enables video results
+#   BRAVE_API_KEY        Brave Search API key, enables forum/blog/manual results
+#   REDDIT_CLIENT_ID     Reddit "script"/"web" app id, enables authenticated Reddit search
+#   REDDIT_CLIENT_SECRET
+[vars]
+ALLOWED_ORIGINS = "*"
