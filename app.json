@@ -53,6 +53,15 @@
         {
           "enableRemoteNotifications": false
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
+        }
       ]
     ],
     "scheme": "bayone",

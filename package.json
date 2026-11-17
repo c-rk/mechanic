@@ -14,6 +14,7 @@
     "@types/three": "^0.187.0",
     "expo": "~58.0.26",
     "expo-blur": "~58.0.6",
+    "expo-build-properties": "~58.0.12",
     "expo-constants": "~58.0.16",
     "expo-document-picker": "~58.0.5",
     "expo-file-system": "~58.0.13",
