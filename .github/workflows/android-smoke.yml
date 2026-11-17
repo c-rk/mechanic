@@ -21,6 +21,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
       - run: npx expo prebuild --platform android --no-install --clean
+      # Install the NDK React Native asks for up front, with retries: Gradle's own download can
+      # arrive truncated ("Archive is not a ZIP archive").
+      - name: Install Android NDK
+        run: |
+          NDK=$(grep -o '^ndkVersion *= *"[^"]*"' node_modules/react-native/gradle/libs.versions.toml | grep -o '"[^"]*"' | tr -d '"')
+          echo "NDK $NDK"
+          for i in 1 2 3; do
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK" > /dev/null && break
+            echo "retry $i"; rm -rf "$ANDROID_HOME/ndk/$NDK"; sleep 10
+          done
+          ls "$ANDROID_HOME/ndk"
+
       - name: Build release APK (x86_64 for the emulator)
         working-directory: android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
