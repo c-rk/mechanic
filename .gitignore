@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Downloaded at build time (see .github/workflows/web-pages.yml)
+/public/models/
+/public/mediapipe/

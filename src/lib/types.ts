@@ -17,6 +17,8 @@ export interface WrapView {
   p2: Pt;
   /** Side only: wheel radius in pixels. */
   radiusPx?: number;
+  /** Vehicle mask from the segmentation model, run-length encoded (see wrap/analyze.ts). */
+  mask?: { w: number; h: number; scale: number; rle: string };
 }
 
 /** Body outline fitted to the side photo (metres, car coordinates). */

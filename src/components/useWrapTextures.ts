@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { CarBody } from '../lib/bodySpecs';
 import type { BodyType, Wrap, WrapView } from '../lib/types';
-import { analyzeEnd, analyzeSide, buildTexture, endFrame, sideFrame, uvMatrix } from '../lib/wrap/analyze';
+import { analyzeEnd, analyzeSide, buildTexture, decodeMask, endFrame, sideFrame, uvMatrix } from '../lib/wrap/analyze';
 import { loadPixels } from '../lib/wrap/image';
 import { photoTexture, type ProjectedPhoto, type WrapTextures } from './wrapMaterial';
 
@@ -14,7 +14,8 @@ function project(kind: Kind, view: WrapView, body: CarBody): Promise<ProjectedPh
   let p = cache.get(key);
   if (!p) {
     p = loadPixels(view.ref).then((px) => {
-      const mask = kind === 'side' ? analyzeSide(px, view, body).mask : analyzeEnd(px, view, body, kind).mask;
+      const model = view.mask ? decodeMask(view.mask) : null;
+      const mask = kind === 'side' ? analyzeSide(px, view, body, model).mask : analyzeEnd(px, view, body, kind, model).mask;
       const frame = kind === 'side' ? sideFrame(view, body) : endFrame(view, body, kind);
       return { texture: photoTexture(buildTexture(px, mask)), matrix: uvMatrix(frame, px.width, px.height) };
     });

@@ -25,6 +25,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Fetch on-device segmentation model
+        run: ./scripts/fetch-models.sh
       - name: Export web build
         run: npx expo export --platform web
         env:

@@ -269,7 +269,7 @@ const median = (xs: number[]) => {
 const hex = (r: number, g: number, b: number) =>
   '#' + [r, g, b].map((c) => Math.round(Math.max(0, Math.min(255, c))).toString(16).padStart(2, '0')).join('');
 
-export function analyzeSide(px: Pixels, view: WrapView, body: CarBody): SideFit {
+export function analyzeSide(px: Pixels, view: WrapView, body: CarBody, model?: Mask | null): SideFit {
   const spec = SPECS[body];
   const work = downsample(px);
   const f = sideFrame(view, body);
@@ -285,7 +285,10 @@ export function analyzeSide(px: Pixels, view: WrapView, body: CarBody): SideFit 
       Math.hypot(x - A, y - R) < R * 0.6 ||
       Math.hypot(x + A, y - R) < R * 0.6,
   );
-  const mask: Mask = { w: work.w, h: work.h, scale: work.scale, data: segment(work, protect) };
+  const mask: Mask = model ? cleanMask(model, (x, y) => {
+    const [a, b] = fromPx(f, x, y);
+    return Math.abs(a) < A * 0.85 && b > R * 1.25 && b < R * 1.25 + 0.28;
+  }) : { w: work.w, h: work.h, scale: work.scale, data: segment(work, protect) };
   const isCar = (x: number, y: number) => {
     const [X, Y] = toPx(f, x, y);
     return maskAt(mask, X, Y);
@@ -382,11 +385,19 @@ export function analyzeSide(px: Pixels, view: WrapView, body: CarBody): SideFit 
   return { mask, profile, xRear, xFront, clearance, wheelR: R, paint, confidence };
 }
 
-export function analyzeEnd(px: Pixels, view: WrapView, body: CarBody, kind: 'front' | 'rear'): { mask: Mask } {
+export function analyzeEnd(px: Pixels, view: WrapView, body: CarBody, kind: 'front' | 'rear', model?: Mask | null): { mask: Mask } {
   const spec = SPECS[body];
   const work = downsample(px);
   const f = endFrame(view, body, kind);
   const protect = protectRegion(work, f, (z, y) => Math.abs(z) < spec.width * 0.28 && y > 0.4 && y < 0.85);
+  if (model) {
+    return {
+      mask: cleanMask(model, (x, y) => {
+        const [z, b] = fromPx(f, x, y);
+        return Math.abs(z) < spec.width * 0.28 && b > 0.4 && b < 0.85;
+      }),
+    };
+  }
   return { mask: { w: work.w, h: work.h, scale: work.scale, data: segment(work, protect) } };
 }
 
@@ -445,4 +456,162 @@ export function buildTexture(px: Pixels, mask: Mask, maxW = 1024): Pixels {
     }
   }
   return { width, height, data };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Model masks
+
+/**
+ * Tidies a segmentation-model mask: keeps the component that contains the known vehicle core
+ * (or the largest one if the core is missing) and fills enclosed holes such as dark windows.
+ */
+export function cleanMask(m: Mask, isCore: (fullX: number, fullY: number) => boolean): Mask {
+  const { w, h } = m;
+  const n = w * h;
+  const label = new Int32Array(n);
+  const queue = new Int32Array(n);
+  let best = -1;
+  let bestScore = -1;
+  let next = 0;
+  for (let i = 0; i < n; i++) {
+    if (!m.data[i] || label[i]) continue;
+    next++;
+    let head = 0;
+    let tail = 0;
+    let size = 0;
+    let core = 0;
+    label[i] = next;
+    queue[tail++] = i;
+    while (head < tail) {
+      const j = queue[head++];
+      size++;
+      const x = j % w;
+      const y = (j / w) | 0;
+      if (isCore((x + 0.5) * m.scale, (y + 0.5) * m.scale)) core++;
+      const visit = (k: number) => {
+        if (m.data[k] && !label[k]) {
+          label[k] = next;
+          queue[tail++] = k;
+        }
+      };
+      if (x > 0) visit(j - 1);
+      if (x < w - 1) visit(j + 1);
+      if (y > 0) visit(j - w);
+      if (y < h - 1) visit(j + w);
+    }
+    // Overlap with the known core dominates; size breaks ties.
+    const score = core * 1e7 + size;
+    if (score > bestScore) {
+      bestScore = score;
+      best = next;
+    }
+  }
+  // Background = everything reachable from the border without crossing the kept component.
+  const out = new Uint8Array(n);
+  const bg = new Uint8Array(n);
+  let head = 0;
+  let tail = 0;
+  const seed = (k: number) => {
+    if (label[k] !== best && !bg[k]) {
+      bg[k] = 1;
+      queue[tail++] = k;
+    }
+  };
+  for (let x = 0; x < w; x++) {
+    seed(x);
+    seed((h - 1) * w + x);
+  }
+  for (let y = 0; y < h; y++) {
+    seed(y * w);
+    seed(y * w + w - 1);
+  }
+  while (head < tail) {
+    const j = queue[head++];
+    const x = j % w;
+    const y = (j / w) | 0;
+    if (x > 0) seed(j - 1);
+    if (x < w - 1) seed(j + 1);
+    if (y > 0) seed(j - w);
+    if (y < h - 1) seed(j + w);
+  }
+  for (let i = 0; i < n; i++) out[i] = bg[i] ? 0 : 1;
+  return { ...m, data: out };
+}
+
+/** Wheel radius in full-resolution pixels: from the wheel centre straight down to where the mask ends. */
+export function detectWheelRadius(m: Mask, view: WrapView): number | undefined {
+  const radii: number[] = [];
+  for (const [cx, cy] of [view.p1, view.p2]) {
+    const x = Math.floor(cx / m.scale);
+    let y = Math.floor(cy / m.scale);
+    if (x < 0 || x >= m.w || y < 0 || y >= m.h || !m.data[y * m.w + x]) continue;
+    while (y < m.h - 1 && m.data[(y + 1) * m.w + x]) y++;
+    radii.push((y + 1) * m.scale - cy);
+  }
+  if (radii.length !== 2) return undefined;
+  const wheelbase = Math.hypot(view.p2[0] - view.p1[0], view.p2[1] - view.p1[1]);
+  const r = (radii[0] + radii[1]) / 2;
+  // Plausibility: a wheel radius is roughly 9–20 % of the wheelbase, and both wheels agree.
+  if (r < wheelbase * 0.09 || r > wheelbase * 0.2 || Math.abs(radii[0] - radii[1]) > r * 0.25) return undefined;
+  return r;
+}
+
+/** Run-length encoding of a 0/1 mask, row-major, starting with a run of zeros. */
+export function encodeMask(m: Mask): { w: number; h: number; scale: number; rle: string } {
+  const runs: number[] = [];
+  let cur = 0;
+  let len = 0;
+  for (let i = 0; i < m.data.length; i++) {
+    if (m.data[i] === cur) len++;
+    else {
+      runs.push(len);
+      cur = m.data[i];
+      len = 1;
+    }
+  }
+  runs.push(len);
+  return { w: m.w, h: m.h, scale: m.scale, rle: runs.map((r) => r.toString(36)).join('.') };
+}
+
+export function decodeMask(e: { w: number; h: number; scale: number; rle: string }): Mask {
+  const data = new Uint8Array(e.w * e.h);
+  let i = 0;
+  let v = 0;
+  for (const part of e.rle.split('.')) {
+    const len = parseInt(part, 36);
+    if (v) data.fill(1, i, i + len);
+    i += len;
+    v ^= 1;
+  }
+  return { w: e.w, h: e.h, scale: e.scale, data };
+}
+
+/**
+ * Prompt strokes for the segmentation model, derived from the two alignment taps (full-res pixels).
+ * Positive: through both wheels and along the doors. Negative: the road surface just below the
+ * tyres and the air well above the roof. Points outside the photo are dropped.
+ */
+export function modelPrompts(view: WrapView, body: CarBody, kind: ViewKind): { positive: Pt[][]; negative: Pt[][] } {
+  const inside = (p: Pt) => p[0] >= 0 && p[1] >= 0 && p[0] < view.width && p[1] < view.height;
+  const line = (f: Frame, pts: [number, number][]) => pts.map(([a, b]) => toPx(f, a, b)).filter(inside);
+  const steps = (from: number, to: number, n: number) => Array.from({ length: n }, (_, i) => from + ((to - from) * i) / (n - 1));
+  if (kind === 'side') {
+    const f = sideFrame(view, body);
+    const A = SPECS[body].axle;
+    const R = f.wheelR;
+    return {
+      positive: [line(f, [[-A, R], [-A * 0.5, R * 1.7], [0, R * 1.9], [A * 0.5, R * 1.7], [A, R]])],
+      negative: [line(f, steps(-A - 2.5, A + 2.5, 12).map((x) => [x, -0.18])), line(f, steps(-A - 2, A + 2, 12).map((x) => [x, 2.7]))].filter(
+        (s) => s.length > 1,
+      ),
+    };
+  }
+  const f = endFrame(view, body, kind);
+  const W = SPECS[body].width;
+  return {
+    positive: [line(f, [[-W * 0.3, 0.55], [0, 0.65], [W * 0.3, 0.55]])],
+    negative: [line(f, steps(-W * 1.4, W * 1.4, 10).map((z) => [z, -0.15])), line(f, steps(-W * 1.4, W * 1.4, 10).map((z) => [z, 2.5]))].filter(
+      (s) => s.length > 1,
+    ),
+  };
 }

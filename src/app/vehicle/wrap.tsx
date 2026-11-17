@@ -12,7 +12,8 @@ import { deleteFile, fileUrl, saveFile } from '../../lib/files';
 import { useStore } from '../../lib/store';
 import { C, F } from '../../lib/theme';
 import type { Pt, Wrap, WrapView } from '../../lib/types';
-import { analyzeSide, endFrame, sideFrame, toPx, type SideFit } from '../../lib/wrap/analyze';
+import { analyzeSide, decodeMask, detectWheelRadius, encodeMask, endFrame, modelPrompts, sideFrame, toPx, type SideFit } from '../../lib/wrap/analyze';
+import { maskOverlayUri, modelSegmentationAvailable, segmentWithModel } from '../../lib/wrap/segmenter';
 import { loadPixels, normalizePhoto } from '../../lib/wrap/image';
 
 type Kind = 'side' | 'front' | 'rear';
@@ -44,6 +45,8 @@ export default function WrapStudio() {
   const [usePaint, setUsePaint] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [seg, setSeg] = useState<Partial<Record<Kind, 'running' | 'done' | 'fallback'>>>({});
+  const [radiusManual, setRadiusManual] = useState(false);
   const created = useRef<string[]>([]);
 
   const body = v?.bodyType as CarBody;
@@ -55,7 +58,7 @@ export default function WrapStudio() {
     let live = true;
     const view = JSON.parse(sideKey) as WrapView;
     loadPixels(view.ref)
-      .then((px) => live && setFit({ key: sideKey, result: analyzeSide(px, view, body) }))
+      .then((px) => live && setFit({ key: sideKey, result: analyzeSide(px, view, body, view.mask ? decodeMask(view.mask) : null) }))
       .catch((e) => live && setError(`Could not read the photo: ${(e as Error).message}`));
     return () => {
       live = false;
@@ -115,19 +118,49 @@ export default function WrapStudio() {
   };
 
   const draft = drafts[kind];
-  const tap = (p: Pt) =>
-    setDrafts((d) => {
-      const cur = d[kind];
-      if (!cur) return d;
-      // Two taps define the view; a third tap starts over.
-      const next: Draft = !cur.p1 || cur.p2 ? { ...cur, p1: p, p2: undefined } : { ...cur, p2: p };
-      if (kind === 'side' && next.p1 && next.p2 && !cur.radiusPx) {
-        next.radiusPx = sideFrame(next as WrapView, body).rPx;
+  /** Runs the on-device segmentation model for one photo once both taps are placed. */
+  const runSegmentation = async (k: Kind, view: WrapView, manual = radiusManual) => {
+    if (!modelSegmentationAvailable) return;
+    setSeg((x) => ({ ...x, [k]: 'running' }));
+    // Let the progress indicator paint before the model blocks the thread.
+    await new Promise((r) => setTimeout(r, 50));
+    try {
+      const px = await loadPixels(view.ref);
+      const { positive, negative } = modelPrompts(view, body, k);
+      const m = await segmentWithModel(px, positive, negative);
+      if (!m) {
+        setSeg((x) => ({ ...x, [k]: 'fallback' }));
+        return;
       }
-      return { ...d, [kind]: next };
-    });
-  const nudgeRadius = (f: number) =>
+      const auto = k === 'side' && !manual ? detectWheelRadius(m, view) : undefined;
+      setDrafts((d) => {
+        const cur = d[k];
+        // Ignore a result for taps that have since changed.
+        if (!cur || cur.ref !== view.ref || cur.p1 !== view.p1 || cur.p2 !== view.p2) return d;
+        return { ...d, [k]: { ...cur, mask: encodeMask(m), ...(auto ? { radiusPx: auto } : {}) } };
+      });
+      setSeg((x) => ({ ...x, [k]: 'done' }));
+    } catch {
+      setSeg((x) => ({ ...x, [k]: 'fallback' }));
+    }
+  };
+
+  const tap = (p: Pt) => {
+    const cur = drafts[kind];
+    if (!cur) return;
+    // Two taps define the view; a third tap starts over. New taps invalidate the model mask.
+    const next: Draft = !cur.p1 || cur.p2 ? { ...cur, p1: p, p2: undefined, mask: undefined } : { ...cur, p2: p, mask: undefined };
+    if (kind === 'side' && next.p1 && next.p2) {
+      setRadiusManual(false);
+      next.radiusPx = sideFrame({ ...next, radiusPx: undefined } as WrapView, body).rPx;
+    }
+    setDrafts((d) => ({ ...d, [kind]: next }));
+    if (complete(next)) runSegmentation(kind, next, false);
+  };
+  const nudgeRadius = (f: number) => {
+    setRadiusManual(true);
     setDrafts((d) => (d.side?.radiusPx ? { ...d, side: { ...d.side, radiusPx: d.side.radiusPx * f } } : d));
+  };
   const clear = () => setDrafts((d) => ({ ...d, [kind]: undefined }));
 
   const save = async () => {
@@ -159,8 +192,8 @@ export default function WrapStudio() {
         />
       </View>
       <Text style={T.dim}>
-        Everything runs on this device: the photo is cut out from its background, the body is fitted to its silhouette,
-        and the photo is projected onto the 3D model. Drag the preview to turn it.
+        Everything runs on this device: a segmentation model cuts the vehicle out of the photo, the body is fitted to its
+        silhouette and wheel size, and the photo is projected onto the 3D model. Drag the preview to turn it.
       </Text>
 
       <Segmented options={KINDS.map((k) => ({ ...k, label: k.label + (complete(drafts[k.value]) ? ' ✓' : '') }))} value={kind} onChange={setKind} />
@@ -183,6 +216,19 @@ export default function WrapStudio() {
           <View style={{ gap: 12 }}>
             <Text style={T.strong}>{draft.p1 && draft.p2 ? 'Aligned. Tap again to redo.' : HELP[kind][draft.p1 ? 1 : 0]}</Text>
             <TapImage kind={kind} draft={draft} body={body} fit={kind === 'side' ? sideFit : null} onTap={tap} />
+            {seg[kind] === 'running' ? (
+              <View style={styles.segRow}>
+                <ActivityIndicator color={C.accent} />
+                <Text style={[T.dim, { flex: 1 }]}>Cutting out the vehicle on this device. The first time, the 30 MB model downloads once.</Text>
+              </View>
+            ) : draft.mask ? (
+              <View style={styles.segRow}>
+                <Badge text="AI cut-out" color={C.green} />
+                <Text style={T.small}>Segmented on this device{kind === 'side' && !radiusManual ? ' · wheel size detected' : ''}</Text>
+              </View>
+            ) : seg[kind] === 'fallback' ? (
+              <Text style={T.small}>Model unavailable here; using the basic cut-out.</Text>
+            ) : null}
             {kind === 'side' && complete(draft) ? (
               <View style={styles.radiusRow}>
                 <Text style={[T.dim, { flex: 1 }]}>Match the circles to the tyres</Text>
@@ -260,6 +306,9 @@ function TapImage({
   }, [draft.ref]);
 
   const k = width ? width / draft.width : 0;
+  const maskKey = draft.mask?.rle;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the RLE string identifies the mask
+  const overlay2 = useMemo(() => (draft.mask ? maskOverlayUri(decodeMask(draft.mask)) : null), [maskKey]);
   const S = (p: Pt) => `${p[0] * k},${p[1] * k}`;
   const onPress = (e: GestureResponderEvent) => {
     if (!k) return;
@@ -307,6 +356,7 @@ function TapImage({
       accessibilityLabel="Photo; tap to place alignment points"
       style={{ width: '100%', aspectRatio: draft.width / draft.height, borderRadius: 14, overflow: 'hidden', backgroundColor: C.surface2 }}>
       {uri?.ref === draft.ref ? <Image source={{ uri: uri.uri }} style={StyleSheet.absoluteFill} resizeMode="stretch" /> : null}
+      {overlay2 ? <Image source={{ uri: overlay2 }} style={StyleSheet.absoluteFill} resizeMode="stretch" /> : null}
       <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
         {overlay}
         {[draft.p1, draft.p2].map((p, i) =>
@@ -320,6 +370,7 @@ function TapImage({
 const styles = StyleSheet.create({
   preview: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
   radiusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  segRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   paintRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   swatch: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: C.surface3 },
   check: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
