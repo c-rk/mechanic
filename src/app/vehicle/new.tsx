@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Shell } from '../../components/Shell';
 import { Button, Input, Panel, Segmented, T } from '../../components/ui';
 import { Viewer3D } from '../../components/Viewer3D';
+import { vehicleDims } from '../../lib/dimensions';
 import { decodeVin } from '../../lib/nhtsa';
 import { useStore } from '../../lib/store';
 import { C, F, PAINTS } from '../../lib/theme';
@@ -79,7 +80,7 @@ export default function VehicleForm() {
   return (
     <Shell title={existing ? 'Edit vehicle' : 'New vehicle'} back>
       <Panel title="Preview" pad={false}>
-        <Viewer3D bodyType={d.bodyType} color={d.color} modelRef={d.modelRef} height={220} />
+        <Viewer3D dims={vehicleDims(d)} bodyType={d.bodyType} color={d.color} modelRef={d.modelRef} height={220} />
       </Panel>
 
       <Panel title="Identify by VIN">

@@ -6,7 +6,7 @@ import { Bevel, Button, Empty, Panel, Row, Segmented, T } from '../components/ui
 import { fmtNum } from '../lib/calc';
 import { METERS_PER } from '../lib/odometer';
 import { useStore } from '../lib/store';
-import { C, F, NUM } from '../lib/theme';
+import { AREA, C, F, NUM } from '../lib/theme';
 import { startTrip, stopTrip, useTrip } from '../lib/trip';
 
 const fmtDuration = (ms: number) => {
@@ -69,7 +69,7 @@ export default function TripScreen() {
   return (
     <Shell title="Drive recorder" back>
       {!trip ? (
-        <Panel title="Vehicle">
+        <Panel tint={AREA.drive} title="Vehicle">
           <Segmented options={vehicles.map((x) => ({ value: x.id, label: x.nickname || x.model }))} value={vehicleId} onChange={setVehicleId} scroll />
         </Panel>
       ) : null}
@@ -113,7 +113,7 @@ export default function TripScreen() {
             : 'With "Always" location access, recording continues with the screen off. GPS distance usually reads within 1–3 % of the car odometer.'}
       </Text>
 
-      <Panel title="Recent drives">
+      <Panel tint={AREA.drive} title="Recent drives">
         {history.length === 0 ? <Empty text="No recorded drives yet." /> : null}
         {history.map((t, i) => (
           <Row key={t.id} last={i === history.length - 1}>

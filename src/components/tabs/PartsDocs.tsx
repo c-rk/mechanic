@@ -8,7 +8,7 @@ import { checkPrice } from '../../lib/proxy';
 import { confirm } from '../../lib/confirm';
 import { deleteFile, openFile, PickedFile, saveFile } from '../../lib/files';
 import { today, uid, useStore } from '../../lib/store';
-import { C, F } from '../../lib/theme';
+import { AREA, C, F } from '../../lib/theme';
 import type { Doc, DocCategory, Part, PartStatus, Vehicle } from '../../lib/types';
 import { Badge, Empty, FieldDef, FormModal, Button, Panel, Row, T } from '../ui';
 
@@ -76,7 +76,7 @@ export function PartsTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel
+      <Panel tint={AREA.parts}
         title="Parts & fluids"
         right={
           <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -182,7 +182,7 @@ export function DocsTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel title="Document folder" right={<Button label="Add file" small onPress={pick} />}>
+      <Panel tint={AREA.docs} title="Document folder" right={<Button label="Add file" small onPress={pick} />}>
         <Text style={[T.dim, { marginBottom: 4 }]}>
           Registration, insurance, invoices, manuals. Files are copied into this device&apos;s app storage and are not uploaded.
         </Text>

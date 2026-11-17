@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
+import { dimsKey, type Dims } from '../lib/dimensions';
 import { fileUrl } from '../lib/files';
 import type { BodyType, Wrap } from '../lib/types';
 import { buildVehicle, normaliseImported } from './carModel';
 import { useWrapTextures } from './useWrapTextures';
 
 export interface ModelSource {
+  /** Real dimensions from the spec sheet. */
+  dims?: Dims;
   bodyType: BodyType;
   color: string;
   modelRef?: string;
@@ -18,7 +21,8 @@ export interface ModelSource {
  * The 3D object for a vehicle: an uploaded .glb when present, otherwise the procedural body,
  * fitted to and wrapped with the owner's photos when a photo wrap exists.
  */
-export function useVehicleModel({ bodyType, color, modelRef, wrap }: ModelSource) {
+export function useVehicleModel({ bodyType, color, modelRef, wrap, dims }: ModelSource) {
+  const dk = dimsKey(dims);
   const [imported, setImported] = useState<{ ref: string; object: THREE.Group; length: number } | null>(null);
   const [failedRef, setFailedRef] = useState<string | null>(null);
   const photo = useWrapTextures(modelRef ? undefined : wrap, bodyType);
@@ -36,8 +40,8 @@ export function useVehicleModel({ bodyType, color, modelRef, wrap }: ModelSource
   }, [modelRef]);
 
   const builtIn = useMemo(
-    () => buildVehicle(bodyType, color, photo.textures ? { wrap: photo.textures, fit: wrap?.shape } : {}),
-    [bodyType, color, photo.textures, wrap?.shape],
+    () => buildVehicle(bodyType, color, { dims: dk ? (JSON.parse(dk) as Dims) : undefined, ...(photo.textures ? { wrap: photo.textures, fit: wrap?.shape } : {}) }),
+    [bodyType, color, photo.textures, wrap?.shape, dk],
   );
 
   return {

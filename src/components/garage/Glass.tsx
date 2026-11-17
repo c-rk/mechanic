@@ -44,7 +44,7 @@ export function ActionTile({ icon, label, onPress, tint = C.text }: { icon: Icon
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 }]}>
       <View style={styles.tileIcon}>
-        <Bevel radius={14} />
+        <Bevel radius={18} />
         <Icon name={icon} size={24} color={tint} />
       </View>
       <Text style={styles.tileLabel} numberOfLines={1}>
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1.25,
     maxHeight: 62,
-    borderRadius: 14,
+    borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: C.glassEdge,
@@ -69,5 +69,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileLabel: { color: C.dim, fontFamily: F.mono, fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' },
+  tileLabel: { color: C.dim, fontFamily: F.medium, fontSize: 12 },
 });

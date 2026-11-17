@@ -4,11 +4,14 @@ import { ActivityIndicator, PanResponder, StyleSheet, Text, View } from 'react-n
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
+import type { Dims } from '../lib/dimensions';
 import { C, F } from '../lib/theme';
 import type { BodyType, Wrap } from '../lib/types';
 import { contactShadow, useVehicleModel } from './useVehicleModel';
 
 interface Props {
+  /** Real dimensions from the spec sheet. */
+  dims?: Dims;
   bodyType: BodyType;
   color: string;
   modelRef?: string;
@@ -76,8 +79,8 @@ function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: 
 
   return (
     <>
-      <hemisphereLight args={['#ffe9c8', '#0d0e11', 0.4]} />
-      <directionalLight position={[3, 8, 5]} intensity={2.1} color="#fff3e0" />
+      <hemisphereLight args={['#e8eeff', '#0d0e11', 0.4]} />
+      <directionalLight position={[3, 8, 5]} intensity={2.1} color="#ffffff" />
       <directionalLight position={[-6, 3, -4]} intensity={0.6} color="#9fb3c8" />
       <group ref={turntable}>
         <primitive object={model} />
@@ -91,15 +94,15 @@ function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: 
       <fog attach="fog" args={[BACKDROP, length * 2.2, length * 5.5]} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]}>
         <circleGeometry args={[length * 8, 64]} />
-        <meshStandardMaterial color="#0c0d10" metalness={0.2} roughness={0.6} envMapIntensity={0.15} />
+        <meshStandardMaterial color="#07080a" metalness={0.15} roughness={0.7} envMapIntensity={0.06} />
       </mesh>
     </>
   );
 }
 
-export function Viewer3D({ bodyType, color, modelRef, wrap, height = 280, initialYaw = -0.65, still }: Props) {
+export function Viewer3D({ dims, bodyType, color, modelRef, wrap, height = 280, initialYaw = -0.65, still }: Props) {
   const spin = useRef<Spin>({ yaw: initialYaw, velocity: 0, dragging: false });
-  const { model: shown, loading, note } = useVehicleModel({ bodyType, color, modelRef, wrap });
+  const { model: shown, loading, note } = useVehicleModel({ bodyType, color, modelRef, wrap, dims });
 
   // The ref is read only inside gesture callbacks, never while rendering.
   // eslint-disable-next-line react-hooks/refs

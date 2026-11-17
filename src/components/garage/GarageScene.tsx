@@ -4,19 +4,20 @@ import { StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
+import { vehicleDims } from '../../lib/dimensions';
 import type { Vehicle } from '../../lib/types';
 import { contactShadow, radialGlow, useVehicleModel, type ModelSource } from '../useVehicleModel';
-import { bayNumber, corrugated, hazard } from './textures';
+import { bayNumber, corrugated } from './textures';
 
 /** Distance between parking bays along x, metres. */
 export const BAY = 5.2;
 /** Cars park nose-out at a three-quarter angle to the camera. */
 const YAW = -1.78;
-const BG = '#08090b';
-/** Sodium-lamp amber, matching the UI accent. */
-const ACCENT = '#f2a93b';
-const LAMP = '#ffd9a0';
-const PAINT = '#e8b02e';
+const BG = '#0a0b0e';
+/** Soft blue wall glow (the UI accent), neutral overhead light, white floor paint. */
+const ACCENT = '#7ea6ff';
+const LAMP = '#ffffff';
+const PAINT = '#d5dbe4';
 
 export interface GarageCamera {
   /** Bay the camera settles on. */
@@ -25,6 +26,8 @@ export interface GarageCamera {
   drag: number;
   /** Fraction of the screen height covered by UI at the bottom; the scene is framed above it. */
   bottomInset: number;
+  /** Metres of garage to fit across the screen for each bay (larger vehicles need more). */
+  fits?: number[];
 }
 
 function Environment() {
@@ -52,6 +55,7 @@ function Environment() {
 function Rig({ cam }: { cam: React.RefObject<GarageCamera> }) {
   const { camera, size } = useThree();
   const x = useRef<number | null>(null);
+  const fit = useRef(5.4);
   const dir = new THREE.Vector3(0.42, 0.25, 0.9).normalize();
 
   /* eslint-disable react-hooks/immutability -- the camera is driven imperatively every frame */
@@ -70,11 +74,13 @@ function Rig({ cam }: { cam: React.RefObject<GarageCamera> }) {
     const target = (c.index + c.drag) * BAY;
     if (x.current === null) x.current = target;
     x.current += (target - x.current) * (1 - Math.exp(-dt * 9));
-    // Distance that fits about 5.4 m of garage across the screen, whatever the aspect ratio.
+    // Distance that fits the selected vehicle across the screen, whatever the aspect ratio.
+    const wanted = c.fits?.[Math.round(c.index + c.drag)] ?? 5.4;
+    fit.current += (wanted - fit.current) * (1 - Math.exp(-dt * 5));
     const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov / 2)) * aspect);
-    const dist = Math.max(7.5, 2.7 / Math.tan(hfov / 2));
+    const dist = Math.max(7.5, fit.current / 2 / Math.tan(hfov / 2));
     p.position.set(x.current + dir.x * dist, dir.y * dist, dir.z * dist);
-    p.lookAt(x.current, 0.55, 0);
+    p.lookAt(x.current, 0.55 * (fit.current / 5.4), 0);
   });
   /* eslint-enable react-hooks/immutability */
   return null;
@@ -96,7 +102,6 @@ function Car({ source }: { source: ModelSource }) {
 /** One parking bay: painted lines, a pool of light that brightens when the bay is selected, the car. */
 function Bay({ x, i, source, cam }: { x: number; i: number; source?: ModelSource; cam: React.RefObject<GarageCamera> }) {
   const pool = useRef<THREE.MeshBasicMaterial>(null);
-  const stopTex = useMemo(() => hazardStrip(BAY * 0.8), []);
   const strip = useRef<THREE.MeshBasicMaterial>(null);
   useFrame((_, dt) => {
     const c = cam.current;
@@ -107,10 +112,10 @@ function Bay({ x, i, source, cam }: { x: number; i: number; source?: ModelSource
     if (strip.current) strip.current.opacity += (0.03 + near * 0.22 - strip.current.opacity) * k;
   });
 
-  const lineMat = <meshBasicMaterial color={PAINT} transparent opacity={0.55} depthWrite={false} />;
+  const lineMat = <meshBasicMaterial color={PAINT} transparent opacity={0.22} depthWrite={false} />;
   return (
     <group position={[x, 0, 0]}>
-      {/* Painted bay markings, a hazard-striped stop line at the back and the bay number up front. */}
+      {/* Painted bay markings, a stop line at the back and the bay number up front. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-BAY / 2, 0.003, 0.4]}>
         <planeGeometry args={[0.09, 7.2]} />
         {lineMat}
@@ -120,12 +125,12 @@ function Bay({ x, i, source, cam }: { x: number; i: number; source?: ModelSource
         {lineMat}
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, -3.25]}>
-        <planeGeometry args={[BAY * 0.8, 0.28]} />
-        <meshBasicMaterial map={stopTex} transparent opacity={0.8} depthWrite={false} />
+        <planeGeometry args={[BAY * 0.8, 0.06]} />
+        {lineMat}
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[BAY * 0.22, 0.003, 3.3]}>
         <planeGeometry args={[1.7, 1.13]} />
-        <meshBasicMaterial map={bayNumber(i + 1)} color={PAINT} transparent opacity={0.75} depthWrite={false} />
+        <meshBasicMaterial map={bayNumber(i + 1)} color={PAINT} transparent opacity={0.28} depthWrite={false} />
       </mesh>
       {/* Overhead light falling on the floor. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
@@ -142,13 +147,7 @@ function Bay({ x, i, source, cam }: { x: number; i: number; source?: ModelSource
   );
 }
 
-/** Each mesh needs its own texture instance to set its own repeat. */
-function hazardStrip(len: number) {
-  const t = hazard().clone();
-  t.repeat.set(len / 0.28, 1);
-  t.needsUpdate = true;
-  return t;
-}
+/** The wall texture needs its own instance to set its own repeat. */
 function wall(len: number) {
   const t = corrugated().clone();
   t.repeat.set(len / 0.22, 1);
@@ -159,7 +158,7 @@ function wall(len: number) {
 export function GarageScene({ vehicles, cam }: { vehicles: Vehicle[]; cam: React.RefObject<GarageCamera> }) {
   // An empty garage still shows one bay with a placeholder car.
   const bays: (ModelSource | undefined)[] = vehicles.length
-    ? vehicles.map((v) => ({ bodyType: v.bodyType, color: v.color, modelRef: v.modelRef, wrap: v.wrap }))
+    ? vehicles.map((v) => ({ bodyType: v.bodyType, color: v.color, modelRef: v.modelRef, wrap: v.wrap, dims: vehicleDims(v) }))
     : [{ bodyType: 'coupe', color: '#3b4048' }];
   const extent = Math.max(bays.length, 3) * BAY;
   const wallTex = useMemo(() => wall(extent + 60), [extent]);
@@ -171,13 +170,13 @@ export function GarageScene({ vehicles, cam }: { vehicles: Vehicle[]; cam: React
         <fog attach="fog" args={[BG, 11, 30]} />
         <Environment />
         <Rig cam={cam} />
-        <hemisphereLight args={['#ffe9c8', '#0d0e11', 0.35]} />
-        <directionalLight position={[4, 9, 6]} intensity={2.0} color="#fff3e0" />
+        <hemisphereLight args={['#e8eeff', '#0d0e11', 0.35]} />
+        <directionalLight position={[4, 9, 6]} intensity={2.0} color="#ffffff" />
         <directionalLight position={[-6, 4, -3]} intensity={0.55} color="#9fb3c8" />
         {/* Polished concrete floor and back wall. */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[extent / 2 - BAY, 0, 0]}>
           <planeGeometry args={[extent + 60, 60]} />
-          <meshStandardMaterial color="#0c0d10" metalness={0.2} roughness={0.55} envMapIntensity={0.12} />
+          <meshStandardMaterial color="#07080a" metalness={0.15} roughness={0.7} envMapIntensity={0.06} />
         </mesh>
         <mesh position={[extent / 2 - BAY, 3, -4.4]}>
           <planeGeometry args={[extent + 60, 6]} />

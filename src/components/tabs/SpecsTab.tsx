@@ -5,7 +5,7 @@ import { getApiKey } from '../../lib/secrets';
 import { fillWithAi, mergeSheets, sheetFromVin } from '../../lib/specFill';
 import { ALL_FIELDS, SPEC_CATEGORIES, type SpecField, type SpecSource } from '../../lib/specSchema';
 import { useStore } from '../../lib/store';
-import { C, F, NUM } from '../../lib/theme';
+import { AREA, C, F, NUM } from '../../lib/theme';
 import type { Vehicle } from '../../lib/types';
 import { Button, FormModal, Panel, Row, T } from '../ui';
 
@@ -48,7 +48,7 @@ export function SpecsTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel
+      <Panel tint={AREA.specs}
         title={`Specification · ${filled}/${ALL_FIELDS.length}`}
         right={busy ? <ActivityIndicator color={C.accent} /> : <Button label="Fill with AI" small onPress={fill} />}>
         <Text style={T.dim}>
@@ -76,7 +76,7 @@ export function SpecsTab({ v }: { v: Vehicle }) {
         const rows = cat.fields.filter((x) => showEmpty || sheet[x.key]);
         if (!rows.length) return null;
         return (
-          <Panel key={cat.id} title={cat.title}>
+          <Panel key={cat.id} tint={AREA.specs} title={cat.title}>
             {rows.map((x, i) => {
               const val = sheet[x.key];
               return (
@@ -102,7 +102,7 @@ export function SpecsTab({ v }: { v: Vehicle }) {
       ) : null}
 
       {raw.length ? (
-        <Panel title={`Raw VIN decoder data (${raw.length})`} right={<Button label={showRaw ? 'Hide' : 'Show'} tone="ghost" small onPress={() => setShowRaw(!showRaw)} />}>
+        <Panel tint={AREA.specs} title={`Raw VIN decoder data (${raw.length})`} right={<Button label={showRaw ? 'Hide' : 'Show'} tone="ghost" small onPress={() => setShowRaw(!showRaw)} />}>
           {showRaw
             ? raw.map(([k, val], i) => (
                 <Row key={k} last={i === raw.length - 1}>

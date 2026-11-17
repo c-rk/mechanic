@@ -10,12 +10,13 @@ import { DocsTab, PartsTab } from '../../components/tabs/PartsDocs';
 import { SpecsTab } from '../../components/tabs/SpecsTab';
 import { Badge, Empty, FormModal, Button, Stat, Panel, Row, Segmented, T } from '../../components/ui';
 import { Viewer3D } from '../../components/Viewer3D';
+import { vehicleDims } from '../../lib/dimensions';
 import { describeDue, dueInfo, fmtNum, fuelStats, sortByDue } from '../../lib/calc';
 import { estimateOdometer } from '../../lib/odometer';
 import { confirm } from '../../lib/confirm';
 import { deleteFile, PickedFile, saveFile } from '../../lib/files';
 import { useStore } from '../../lib/store';
-import { C, F, STATE_COLOR } from '../../lib/theme';
+import { AREA, C, F, STATE_COLOR } from '../../lib/theme';
 import type { Vehicle } from '../../lib/types';
 
 const TABS = [
@@ -48,7 +49,7 @@ export default function VehicleScreen() {
   return (
     <Shell title={v.nickname || `${v.make} ${v.model}`} eyebrow={[v.year, v.make, v.model].filter(Boolean).join(' ')} back>
       <View style={{ borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border }}>
-        <Viewer3D bodyType={v.bodyType} color={v.color} modelRef={v.modelRef} wrap={v.wrap} height={tab === 'overview' ? 260 : 160} />
+        <Viewer3D dims={vehicleDims(v)} bodyType={v.bodyType} color={v.color} modelRef={v.modelRef} wrap={v.wrap} height={tab === 'overview' ? 260 : 160} />
       </View>
       <Segmented options={[...TABS]} value={tab} onChange={setTab} scroll />
       {tab === 'overview' ? <Overview v={v} onTab={setTab} /> : null}
@@ -128,7 +129,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         <Button label="Record drive" tone="secondary" onPress={() => router.push('/trip')} style={{ flex: 1 }} />
       </View>
 
-      <Panel title={attention.length ? `Needs attention (${attention.length})` : 'Coming up'} right={<Button label="Schedule" tone="ghost" small onPress={() => onTab('service')} />}>
+      <Panel tint={AREA.service} title={attention.length ? `Needs attention (${attention.length})` : 'Coming up'} right={<Button label="Schedule" tone="ghost" small onPress={() => onTab('service')} />}>
         {upcoming.length === 0 ? <Empty text="Log when each task was last done to start the countdown." /> : null}
         {upcoming.map(({ m, due: d }, i) => (
           <Row key={m.id} last={i === upcoming.length - 1}>
@@ -143,7 +144,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         ))}
       </Panel>
 
-      <Panel title="Vehicle data" right={<Button label="Edit" tone="ghost" small onPress={() => router.push(`/vehicle/new?edit=${v.id}`)} />}>
+      <Panel tint={AREA.specs} title="Vehicle data" right={<Button label="Edit" tone="ghost" small onPress={() => router.push(`/vehicle/new?edit=${v.id}`)} />}>
         {facts.map(([k, val], i) => (
           <Row key={k} last={i === facts.length - 1 && !v.notes}>
             <Text style={[T.label, { width: 104 }]}>{k}</Text>
@@ -156,7 +157,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         <Button label="Full specification" tone="secondary" small onPress={() => onTab('specs')} style={{ alignSelf: 'flex-start', marginTop: 12 }} />
       </Panel>
 
-      <Panel title="Odometer history" right={<Button label="Add" tone="ghost" small onPress={() => setOdo(true)} />}>
+      <Panel tint={AREA.odometer} title="Odometer history" right={<Button label="Add" tone="ghost" small onPress={() => setOdo(true)} />}>
         {readings.length === 0 ? <Empty text="No readings yet." /> : null}
         {readings.slice(0, 6).map((r, i, a) => (
           <Row key={r.id} last={i === a.length - 1}>
@@ -170,7 +171,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         ))}
       </Panel>
 
-      <Panel title="3D model">
+      <Panel tint={AREA.specs} title="3D model">
         <Text style={T.dim}>
           {v.modelRef
             ? 'Showing your uploaded .glb model.'

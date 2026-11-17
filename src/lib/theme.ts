@@ -1,45 +1,62 @@
 /**
- * Industrial glass: graphite and steel under frosted panels, sodium-amber as the single accent,
- * DIN-style condensed figures and monospaced spec-plate labels.
+ * Neutral graphite under frosted glass. White is the primary action colour, a soft blue marks
+ * selection, and each area of the app has its own muted colour so it can be recognised at a glance.
  */
 export const C = {
-  bg: '#08090B',
-  surface: '#111316',
-  surface2: '#181A1E',
-  surface3: '#23262B',
+  bg: '#0B0C0F',
+  surface: '#121418',
+  surface2: '#191B20',
+  surface3: '#23262D',
   /** Frosted panel fill over the backdrop. */
-  glass: 'rgba(22,24,28,0.58)',
-  glassStrong: 'rgba(16,18,21,0.86)',
-  glassEdge: 'rgba(255,255,255,0.10)',
-  highlight: 'rgba(255,255,255,0.22)',
-  border: 'rgba(255,255,255,0.08)',
-  borderStrong: 'rgba(255,255,255,0.16)',
-  text: '#F2F1EE',
-  dim: '#A3A39E',
-  faint: '#63645F',
-  accent: '#F2A93B',
-  accentStrong: '#D98E1F',
-  accentSoft: 'rgba(242,169,59,0.14)',
-  onAccent: '#16120A',
-  steel: '#8FA3B8',
-  green: '#4FD69C',
-  yellow: '#FFD45C',
-  red: '#FF5D4F',
-  redSoft: 'rgba(255,93,79,0.14)',
+  glass: 'rgba(24,26,31,0.6)',
+  glassStrong: 'rgba(17,19,23,0.9)',
+  glassEdge: 'rgba(255,255,255,0.09)',
+  highlight: 'rgba(255,255,255,0.18)',
+  border: 'rgba(255,255,255,0.07)',
+  borderStrong: 'rgba(255,255,255,0.14)',
+  text: '#ECEEF2',
+  dim: '#9BA2AE',
+  faint: '#5E6471',
+  /** Primary buttons and selected chips. */
+  primary: '#ECEEF2',
+  onPrimary: '#0B0C0F',
+  /** Selection, links, informational highlights. */
+  accent: '#7EA6FF',
+  accentStrong: '#5C8BF5',
+  accentSoft: 'rgba(126,166,255,0.14)',
+  onAccent: '#0B0C0F',
+  steel: '#9FB0C8',
+  green: '#4CD9A0',
+  yellow: '#F4A574',
+  red: '#F2706D',
+  redSoft: 'rgba(242,112,109,0.14)',
 };
 
+/** One colour per area of the app, used for icons, section marks and badges. */
+export const AREA = {
+  fuel: '#45C9B6',
+  odometer: '#7EA6FF',
+  service: '#B49DFF',
+  drive: '#F291B2',
+  parts: '#E3A982',
+  docs: '#A9B6C9',
+  specs: '#8FA0F6',
+  research: '#D9A6F5',
+  mechanic: '#6FD0E8',
+} as const;
+
 export const F = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  /** Condensed DIN-style face for titles and figures. */
-  display: 'BarlowSemiCondensed_600SemiBold',
-  displayBold: 'BarlowSemiCondensed_700Bold',
-  displayMedium: 'BarlowSemiCondensed_500Medium',
-  /** Spec-plate labels and codes. */
-  mono: 'IBMPlexMono_500Medium',
-  monoRegular: 'IBMPlexMono_400Regular',
+  regular: 'Geist_400Regular',
+  medium: 'Geist_500Medium',
+  semibold: 'Geist_600SemiBold',
+  bold: 'Geist_700Bold',
+  /** Titles and large figures. */
+  display: 'Geist_600SemiBold',
+  displayBold: 'Geist_700Bold',
+  displayMedium: 'Geist_500Medium',
+  /** Small labels, codes and units. */
+  mono: 'GeistMono_500Medium',
+  monoRegular: 'GeistMono_400Regular',
 };
 
 /** Spread into any Text style that shows figures, so digits do not shift width. */

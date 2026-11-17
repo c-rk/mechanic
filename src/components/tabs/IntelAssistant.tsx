@@ -8,7 +8,7 @@ import { buildSystemPrompt } from '../../lib/context';
 import { fetchRecalls, researchLinks } from '../../lib/nhtsa';
 import { getApiKey } from '../../lib/secrets';
 import { exportData, uid, useStore } from '../../lib/store';
-import { C, F } from '../../lib/theme';
+import { AREA, C, F } from '../../lib/theme';
 import type { LinkKind, SavedLink, Vehicle } from '../../lib/types';
 import { ResearchPanel } from './Research';
 import { Badge, Empty, FieldDef, FormModal, Button, Input, Panel, Row, T } from '../ui';
@@ -48,7 +48,7 @@ export function IntelTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel
+      <Panel tint={AREA.research}
         title={`Safety recalls${cached ? ` (${cached.items.length})` : ''}`}
         right={busy ? <ActivityIndicator color={C.accent} /> : <Button label={cached ? 'Refresh' : 'Check'} small onPress={refresh} />}>
         <Text style={T.dim}>
@@ -80,7 +80,7 @@ export function IntelTab({ v }: { v: Vehicle }) {
 
       <ResearchPanel v={v} />
 
-      <Panel title="Research shortcuts">
+      <Panel tint={AREA.research} title="Research shortcuts">
         <Text style={[T.dim, { marginBottom: 4 }]}>
           Searches pre-filled for this vehicle. They open in the browser; save the useful results below.
         </Text>
@@ -92,7 +92,7 @@ export function IntelTab({ v }: { v: Vehicle }) {
         ))}
       </Panel>
 
-      <Panel title="Saved references" right={<Button label="Add" small onPress={() => setEditing({})} />}>
+      <Panel tint={AREA.research} title="Saved references" right={<Button label="Add" small onPress={() => setEditing({})} />}>
         {links.length === 0 ? <Empty text="No saved manuals, threads or videos." /> : null}
         {links.map((l, i) => (
           <Row key={l.id} onPress={() => Linking.openURL(l.url)} last={i === links.length - 1}>
@@ -158,7 +158,7 @@ export function AssistantTab({ v }: { v: Vehicle }) {
   };
 
   return (
-    <Panel
+    <Panel tint={AREA.mechanic}
       title={`Mechanic · ${settings.aiProvider} ${settings.aiModel}`}
       right={messages.length ? <Button label="Clear" tone="secondary" small onPress={() => clearChat(v.id)} /> : undefined}>
       <Text style={T.dim}>

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-import { SPECS, type BodySpec, type CarBody } from '../lib/bodySpecs';
+import { SPECS, type BodySpec, type CarBody, type P } from '../lib/bodySpecs';
+import type { Dims } from '../lib/dimensions';
 import type { BodyType, WrapShape } from '../lib/types';
 import { applyWrap, type WrapTextures } from './wrapMaterial';
 
@@ -258,6 +259,8 @@ function bake(root: THREE.Group) {
 }
 
 export interface VehicleOptions {
+  /** Real dimensions from the spec sheet (metres); missing values keep the body-type defaults. */
+  dims?: Dims;
   /** Body shape fitted to a side photo; ignored for motorcycles. */
   fit?: WrapShape;
   /** Photo textures projected onto the body. */
@@ -265,17 +268,63 @@ export interface VehicleOptions {
 }
 
 /** Procedural model for a body type, optionally fitted to and wrapped with the owner's photos. */
+/**
+ * Body-type template stretched to the vehicle's real dimensions. Length, height and width scale the
+ * outline independently; wheelbase, wheel size and ground clearance are set directly, so wheels stay
+ * round and sit in correctly placed arches.
+ */
+export function sizedSpec(spec: BodySpec, d: Dims = {}): BodySpec {
+  const templateTop = Math.max(...spec.cabin.map((p) => p[1]), ...spec.top.map((p) => p[1]));
+  const sx = d.length ? d.length / spec.length : d.wheelbase ? d.wheelbase / (2 * spec.axle) : 1;
+  const sy = d.height ? d.height / templateTop : sx;
+  const axle = d.wheelbase ? d.wheelbase / 2 : spec.axle * sx;
+  const wheelR = d.wheelR ?? spec.wheelR * Math.min(sx, sy);
+  const clearance = d.clearance ?? spec.clearance * sy;
+  // Keep the outline clear of the arches when the wheels are larger than the template's.
+  const lift = Math.max(0, wheelR * 2.25 + 0.04 - Math.min(...spec.top.map((p) => p[1])) * sy);
+  const scale = (p: P): P => [p[0] * sx, p[1] * sy + lift * (1 - p[1] / templateTop)];
+  return {
+    length: spec.length * sx,
+    width: d.width ?? spec.width,
+    wheelR,
+    axle: Math.min(axle, (spec.length * sx) / 2 - wheelR * 1.3),
+    clearance,
+    top: spec.top.map(scale),
+    cabin: spec.cabin.map(scale),
+  };
+}
+
 export function buildVehicle(bodyType: BodyType, color: string, opts: VehicleOptions = {}): { object: THREE.Group; length: number } {
-  if (bodyType === 'motorcycle') return { object: buildMotorcycle(color), length: 2.1 };
-  const spec = SPECS[bodyType as CarBody];
-  const photo = Boolean(opts.wrap);
-  let object = opts.fit ? buildFitted(spec, opts.fit, color) : buildCar(spec, color, photo);
-  const length = opts.fit ? opts.fit.xFront - opts.fit.xRear : spec.length;
-  if (opts.wrap) {
-    object = bake(object);
-    applyWrap(object, opts.wrap);
+  if (bodyType === 'motorcycle') {
+    const object = buildMotorcycle(color);
+    const k = opts.dims?.length ? opts.dims.length / 2.1 : 1;
+    object.scale.setScalar(k);
+    return { object, length: 2.1 * k };
   }
-  return { object, length };
+  const base = SPECS[bodyType as CarBody];
+  const photo = Boolean(opts.wrap);
+  if (opts.fit) {
+    // The photo fixes proportions; the real wheelbase (or length) fixes the scale.
+    let object = buildFitted(base, opts.fit, color);
+    const fitLength = opts.fit.xFront - opts.fit.xRear;
+    const k = opts.dims?.wheelbase ? opts.dims.wheelbase / (2 * base.axle) : opts.dims?.length ? opts.dims.length / fitLength : 1;
+    const zk = opts.dims?.width ? opts.dims.width / (base.width * k) : 1;
+    if (opts.wrap) {
+      object = bake(object);
+      applyWrap(object, opts.wrap);
+    }
+    // Projection works in the model's local space, so scaling the group keeps the photo aligned.
+    object.scale.set(k, k, k * zk);
+    return { object, length: fitLength * k };
+  }
+  const spec = sizedSpec(base, opts.dims);
+  if (!opts.wrap) return { object: buildCar(spec, color, photo), length: spec.length };
+  // The photo projection was measured against the template wheelbase; scale uniformly to match.
+  const object = bake(buildCar(base, color, photo));
+  applyWrap(object, opts.wrap);
+  const k = spec.axle / base.axle;
+  object.scale.set(k, k, spec.width / base.width);
+  return { object, length: base.length * k };
 }
 
 /** Centres an imported model on the turntable, rests it on the floor and reports its length. */

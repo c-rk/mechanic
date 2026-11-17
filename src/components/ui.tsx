@@ -23,10 +23,10 @@ export const T = StyleSheet.create({
   body: { color: C.text, fontFamily: F.regular, fontSize: 15, lineHeight: 21 },
   strong: { color: C.text, fontFamily: F.semibold, fontSize: 15, lineHeight: 21 },
   dim: { color: C.dim, fontFamily: F.regular, fontSize: 13, lineHeight: 19 },
-  small: { color: C.faint, fontFamily: F.mono, fontSize: 11, lineHeight: 15, ...NUM },
-  label: { color: C.faint, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase' },
-  title: { color: C.text, fontFamily: F.displayBold, fontSize: 26, letterSpacing: 0.2, textTransform: 'uppercase' },
-  num: { color: C.text, fontFamily: F.display, fontSize: 17, ...NUM },
+  small: { color: C.faint, fontFamily: F.regular, fontSize: 12, lineHeight: 16, ...NUM },
+  label: { color: C.faint, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 0.6, textTransform: 'uppercase' },
+  title: { color: C.text, fontFamily: F.semibold, fontSize: 24, letterSpacing: -0.6 },
+  num: { color: C.text, fontFamily: F.semibold, fontSize: 16, ...NUM },
 });
 
 /** Hairline highlight along the top edge of a glass surface: light catching the bevel. */
@@ -60,8 +60,11 @@ export function Panel({
   children,
   style,
   pad = true,
+  tint,
 }: {
   title?: string;
+  /** Area colour for the header mark (see AREA in theme). */
+  tint?: string;
   right?: ReactNode;
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -73,7 +76,7 @@ export function Panel({
       <Bevel />
       {title ? (
         <View style={[styles.header, !pad && { paddingBottom: 12 }]}>
-          <View style={styles.headerMark} />
+          <View style={[styles.headerMark, tint ? { backgroundColor: tint } : null]} />
           <Text style={styles.headerText} numberOfLines={1}>
             {title}
           </Text>
@@ -105,7 +108,7 @@ export function Button({
 }) {
   const [scale] = useState(() => new Animated.Value(1));
   const to = (v: number) => Animated.spring(scale, { toValue: v, speed: 40, bounciness: 6, useNativeDriver: true }).start();
-  const fg = tone === 'primary' ? C.onAccent : tone === 'danger' ? C.red : tone === 'ghost' ? C.accent : C.text;
+  const fg = tone === 'primary' ? C.onPrimary : tone === 'danger' ? C.red : tone === 'ghost' ? C.accent : C.text;
   return (
     <Pressable
       onPress={onPress}
@@ -119,12 +122,11 @@ export function Button({
         style={[
           styles.button,
           small && styles.buttonSmall,
-          tone === 'primary' && { backgroundColor: C.accent },
+          tone === 'primary' && { backgroundColor: C.primary },
           tone === 'secondary' && styles.buttonGlass,
           tone === 'danger' && { backgroundColor: C.redSoft, borderWidth: 1, borderColor: 'rgba(255,93,79,0.35)' },
           { opacity: disabled ? 0.4 : 1, transform: [{ scale }] },
         ]}>
-        {tone === 'primary' ? <Bevel radius={10} /> : null}
         <Text style={[styles.buttonText, small && { fontSize: 13 }, { color: fg }]} numberOfLines={1}>
           {label}
         </Text>
@@ -321,7 +323,7 @@ function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormPro
         <GlassFill strong />
         <Bevel radius={28} />
         <View style={styles.grabber} />
-        <Text style={[T.title, { fontSize: 22, paddingHorizontal: 22 }]}>{title}</Text>
+        <Text style={[T.title, { fontSize: 21, paddingHorizontal: 22 }]}>{title}</Text>
         <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 22, gap: 16 }} keyboardShouldPersistTaps="handled">
           {fields.map((f) => (
             <View key={f.key} style={{ gap: 7 }}>
@@ -346,7 +348,7 @@ function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormPro
                   keyboardType={f.kind === 'number' ? 'decimal-pad' : 'default'}
                   multiline={f.kind === 'multiline'}
                   autoCapitalize="none"
-                  style={f.kind === 'number' || f.kind === 'date' ? { fontFamily: F.display, fontSize: 18, ...NUM } : undefined}
+                  style={f.kind === 'number' || f.kind === 'date' ? { fontFamily: F.medium, fontSize: 16, ...NUM } : undefined}
                 />
               )}
             </View>
@@ -365,34 +367,34 @@ function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormPro
 }
 
 const styles = StyleSheet.create({
-  panel: { borderRadius: 18, borderWidth: 1, borderColor: C.glassEdge, overflow: 'hidden' },
+  panel: { borderRadius: 20, borderWidth: 1, borderColor: C.glassEdge, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 15, gap: 10 },
-  headerMark: { width: 3, height: 14, borderRadius: 1, backgroundColor: C.accent },
-  headerText: { flex: 1, color: C.text, fontFamily: F.display, fontSize: 16, letterSpacing: 1, textTransform: 'uppercase' },
+  headerMark: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.faint },
+  headerText: { flex: 1, color: C.text, fontFamily: F.semibold, fontSize: 15.5, letterSpacing: -0.2 },
   panelBody: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 15 },
-  button: { minHeight: 50, paddingHorizontal: 22, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  button: { minHeight: 50, paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   buttonSmall: { minHeight: 34, paddingHorizontal: 14, borderRadius: 9 },
   buttonGlass: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.glassEdge },
-  buttonText: { fontFamily: F.displayBold, fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase' },
-  stat: { borderRadius: 16, borderWidth: 1, borderColor: C.glassEdge, paddingHorizontal: 14, paddingVertical: 12, gap: 3, minWidth: 0, overflow: 'hidden' },
+  buttonText: { fontFamily: F.semibold, fontSize: 15, letterSpacing: -0.1 },
+  stat: { borderRadius: 18, borderWidth: 1, borderColor: C.glassEdge, paddingHorizontal: 14, paddingVertical: 12, gap: 3, minWidth: 0, overflow: 'hidden' },
   statRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  statValue: { fontFamily: F.displayBold, fontSize: 32, letterSpacing: 0.2, flexShrink: 1, ...NUM },
+  statValue: { fontFamily: F.semibold, fontSize: 28, letterSpacing: -0.8, flexShrink: 1, ...NUM },
   statUnit: { color: C.dim, fontFamily: F.mono, fontSize: 11 },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontFamily: F.mono, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase' },
-  dot: { width: 5, height: 5, borderRadius: 1 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 3 },
+  badgeText: { fontFamily: F.mono, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
+  dot: { width: 6, height: 6, borderRadius: 3 },
   chipRow: { flexDirection: 'row', gap: 8 },
-  chip: { paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 9, borderWidth: 1, borderColor: C.glassEdge, backgroundColor: 'rgba(255,255,255,0.04)' },
-  chipOn: { backgroundColor: C.accent, borderColor: C.accent },
-  chipText: { color: C.dim, fontFamily: F.display, fontSize: 14, letterSpacing: 0.8, textTransform: 'uppercase' },
-  chipTextOn: { color: C.onAccent },
+  chip: { paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: C.glassEdge, backgroundColor: 'rgba(255,255,255,0.04)' },
+  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
+  chipText: { color: C.dim, fontFamily: F.medium, fontSize: 14, textTransform: 'capitalize' },
+  chipTextOn: { color: C.onPrimary },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.borderStrong },
   input: {
     backgroundColor: 'rgba(0,0,0,0.28)',
     color: C.text,
     borderWidth: 1,
     borderColor: C.glassEdge,
-    borderRadius: 11,
+    borderRadius: 12,
     paddingHorizontal: 14,
     minHeight: 48,
     fontSize: 15,

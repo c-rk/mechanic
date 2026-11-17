@@ -34,17 +34,6 @@ const once = (key: string, f: () => THREE.DataTexture) => {
   return t;
 };
 
-/** Diagonal yellow/black safety stripes, tileable. */
-export const hazard = () =>
-  once('hazard', () =>
-    make(
-      32,
-      32,
-      (x, y) => (((x + y) >> 3) % 2 === 0 ? [232, 176, 46, 255] : [20, 20, 22, 255]),
-      true,
-    ),
-  );
-
 /** Corrugated steel cladding: soft vertical ribs, tileable horizontally. */
 export const corrugated = () =>
   once('corrugated', () =>

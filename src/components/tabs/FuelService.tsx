@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import { describeDue, dueInfo, fmtMoney, fmtNum, fuelStats, sortByDue } from '../../lib/calc';
 import { today, uid, useStore } from '../../lib/store';
-import { C, F, STATE_COLOR } from '../../lib/theme';
+import { AREA, C, F, STATE_COLOR } from '../../lib/theme';
 import type { FuelEntry, MaintenanceItem, ServiceRecord, Vehicle } from '../../lib/types';
 import { Badge, Empty, FieldDef, FormModal, Button, Stat, Panel, Row, T } from '../ui';
 
@@ -41,7 +41,7 @@ export function FuelTab({ v }: { v: Vehicle }) {
         <Stat flex={1} label={`Cost / ${settings.distanceUnit}`} value={stats.costPerDistance === null ? '-.--' : stats.costPerDistance.toFixed(3)} unit={settings.currency} />
       </View>
 
-      <Panel title="Fill-ups" right={<Button label="Add" small onPress={() => setEditing({})} />}>
+      <Panel tint={AREA.fuel} title="Fill-ups" right={<Button label="Add" small onPress={() => setEditing({})} />}>
         {entries.length === 0 ? <Empty text="No fill-ups logged. Consumption needs two full fills." /> : null}
         {entries.map((e, i) => (
           <Row key={e.id} onPress={() => setEditing({ item: e })} last={i === entries.length - 1}>
@@ -122,7 +122,7 @@ export function ServiceTab({ v }: { v: Vehicle }) {
 
   return (
     <>
-      <Panel title="Schedule" right={<Button label="Add" small onPress={() => setItem({})} />}>
+      <Panel tint={AREA.service} title="Schedule" right={<Button label="Add" small onPress={() => setItem({})} />}>
         <Text style={[T.dim, { marginBottom: 4 }]}>
           Intervals start as generic values. Set them to the figures in the owner&apos;s manual.
         </Text>
@@ -142,7 +142,7 @@ export function ServiceTab({ v }: { v: Vehicle }) {
         ))}
       </Panel>
 
-      <Panel title={`History · ${fmtMoney(spend, settings.currency)}`} right={<Button label="Add" small onPress={() => setRecord({})} />}>
+      <Panel tint={AREA.service} title={`History · ${fmtMoney(spend, settings.currency)}`} right={<Button label="Add" small onPress={() => setRecord({})} />}>
         {records.length === 0 ? <Empty text="No service records yet." /> : null}
         {records.map((r, i) => (
           <Row key={r.id} onPress={() => setRecord({ item: r })} last={i === records.length - 1}>

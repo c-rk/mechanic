@@ -5,7 +5,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 
 import { collectResearch, type ResearchKind } from '../../lib/proxy';
 import { uid, useStore } from '../../lib/store';
-import { C } from '../../lib/theme';
+import { AREA, C } from '../../lib/theme';
 import type { LinkKind, Vehicle } from '../../lib/types';
 import { Button, Empty, Input, Panel, Row, Segmented, T } from '../ui';
 
@@ -51,7 +51,7 @@ export function ResearchPanel({ v }: { v: Vehicle }) {
   const saved = new Set(links.filter((l) => l.vehicleId === v.id).map((l) => l.url));
 
   return (
-    <Panel
+    <Panel tint={AREA.research}
       title={cached ? `Collected · ${cached.items.length}` : 'Collect from the web'}
       right={busy ? <ActivityIndicator color={C.accent} /> : proxyUrl ? <Button label={cached ? 'Refresh' : 'Collect'} small onPress={run} /> : undefined}>
       {!proxyUrl ? (

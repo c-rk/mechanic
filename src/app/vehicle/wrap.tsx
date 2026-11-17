@@ -7,6 +7,7 @@ import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import { Shell } from '../../components/Shell';
 import { Badge, Button, Panel, Segmented, T } from '../../components/ui';
 import { Viewer3D } from '../../components/Viewer3D';
+import { vehicleDims } from '../../lib/dimensions';
 import type { CarBody } from '../../lib/bodySpecs';
 import { deleteFile, fileUrl, saveFile } from '../../lib/files';
 import { useStore } from '../../lib/store';
@@ -183,6 +184,7 @@ export default function WrapStudio() {
     <Shell title="Photo wrap" eyebrow={v.nickname || `${v.make} ${v.model}`} back>
       <View style={styles.preview}>
         <Viewer3D
+          dims={vehicleDims(v)}
           bodyType={v.bodyType}
           color={usePaint && sideFit ? sideFit.paint : v.color}
           wrap={preview}

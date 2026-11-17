@@ -10,14 +10,15 @@ import { ActionTile, Glass, GlassButton, Icon, type IconName } from '../componen
 import { QuickLog, type QuickKind } from '../components/QuickLog';
 import { Bevel, GlassFill } from '../components/ui';
 import { vehicleAlerts, type VehicleAlert } from '../lib/alerts';
+import { vehicleDims } from '../lib/dimensions';
 import { dueInfo, fmtNum, fuelStats, sortByDue, type DueInfo } from '../lib/calc';
 import { estimateOdometer, METERS_PER } from '../lib/odometer';
 import { useStore } from '../lib/store';
-import { C, F, NUM } from '../lib/theme';
+import { AREA, C, F, NUM } from '../lib/theme';
 import { useTrip } from '../lib/trip';
 import type { Vehicle } from '../lib/types';
 
-const LEVEL_COLOR = { critical: C.red, warn: C.yellow, info: C.steel } as const;
+const LEVEL_COLOR = { critical: C.red, warn: C.yellow, info: C.accent } as const;
 /** Share of the screen the info sheet covers; the 3D scene frames the car above it. */
 const SHEET_SHARE = 0.46;
 
@@ -40,7 +41,9 @@ export default function Garage() {
   const cam = useRef<GarageCamera>({ index: active, drag: 0, bottomInset: SHEET_SHARE });
   useEffect(() => {
     cam.current.index = active;
-  }, [active]);
+    // Frame each bay by the real length of its vehicle (with a minimum for small cars).
+    cam.current.fits = vehicles.map((x) => Math.max(5.4, (vehicleDims(x).length ?? 4.6) * 1.18));
+  }, [active, vehicles]);
 
   const count = vehicles.length;
   const pan = useMemo(() => {
@@ -88,7 +91,7 @@ export default function Garage() {
       <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
         <View>
           <Text style={styles.brand}>
-            BAY <Text style={{ color: C.accent }}>ONE</Text>
+            BAY <Text style={{ color: C.dim }}>ONE</Text>
           </Text>
           <Text style={styles.count}>{count ? `Bay ${String(active + 1).padStart(2, '0')} of ${String(count).padStart(2, '0')}` : 'Empty garage'}</Text>
         </View>
@@ -195,10 +198,10 @@ function InfoSheet({ v, onQuick }: { v: Vehicle; onQuick: (k: QuickKind) => void
       )}
 
       <View style={styles.actions}>
-        <ActionTile icon="gas-station-outline" label="Fuel" onPress={() => onQuick('fuel')} />
-        <ActionTile icon="counter" label="Odometer" onPress={() => onQuick('odo')} />
-        <ActionTile icon="wrench-outline" label="Service" onPress={() => onQuick('service')} />
-        <ActionTile icon="map-marker-path" label="Drive" onPress={() => router.push('/trip')} />
+        <ActionTile icon="gas-station-outline" label="Fuel" tint={AREA.fuel} onPress={() => onQuick('fuel')} />
+        <ActionTile icon="counter" label="Odometer" tint={AREA.odometer} onPress={() => onQuick('odo')} />
+        <ActionTile icon="wrench-outline" label="Service" tint={AREA.service} onPress={() => onQuick('service')} />
+        <ActionTile icon="map-marker-path" label="Drive" tint={AREA.drive} onPress={() => router.push('/trip')} />
       </View>
     </Glass>
   );
@@ -233,7 +236,7 @@ function AlertRow({ a, v }: { a: VehicleAlert; v: Vehicle }) {
   const color = LEVEL_COLOR[a.level];
   return (
     <Pressable onPress={() => router.push(`/vehicle/${v.id}?tab=${a.tab}`)} style={({ pressed }) => [styles.alert, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.title}>
-      <HazardEdge color={a.level === 'critical' ? C.red : color} striped={a.level === 'critical'} />
+      <HazardEdge color={color} striped={false} />
       <View style={[styles.alertIcon, { backgroundColor: color + '26' }]}>
         <Icon name={a.icon as IconName} size={16} color={color} />
       </View>
@@ -278,7 +281,7 @@ function EmptySheet() {
         Park a vehicle by VIN or by make and model. Fuel, service, parts and documents stay on this device.
       </Text>
       <Pressable onPress={() => router.push('/vehicle/new')} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel="Add vehicle">
-        <Icon name="plus" size={20} color={C.onAccent} />
+        <Icon name="plus" size={20} color={C.onPrimary} />
         <Text style={styles.ctaText}>Add vehicle</Text>
       </Pressable>
     </Glass>
@@ -291,11 +294,12 @@ function HelpSheet({ v, visible, onClose }: { v: Vehicle; visible: boolean; onCl
     onClose();
     router.push(path as never);
   };
-  const items: { icon: IconName; title: string; detail: string; path: string }[] = [
-    { icon: 'robot-outline', title: 'Ask the mechanic', detail: 'Describe a symptom, noise or warning light', path: `/vehicle/assistant?id=${v.id}` },
-    { icon: 'folder-outline', title: 'Documents', detail: 'Registration, insurance, invoices, manuals', path: `/vehicle/${v.id}?tab=docs` },
-    { icon: 'book-open-variant', title: 'Manuals & research', detail: 'Recalls, videos, forums, saved references', path: `/vehicle/${v.id}?tab=intel` },
-    { icon: 'calendar-check-outline', title: 'Service schedule', detail: 'Intervals, history and what is due', path: `/vehicle/${v.id}?tab=service` },
+  const items: { icon: IconName; title: string; detail: string; path: string; tint: string }[] = [
+    { icon: 'robot-outline', title: 'Ask the mechanic', detail: 'Describe a symptom, noise or warning light', path: `/vehicle/assistant?id=${v.id}`, tint: AREA.mechanic },
+    { icon: 'clipboard-text-outline', title: 'Specifications', detail: 'Engine, dimensions, wheels, fluids', path: `/vehicle/${v.id}?tab=specs`, tint: AREA.specs },
+    { icon: 'folder-outline', title: 'Documents', detail: 'Registration, insurance, invoices, manuals', path: `/vehicle/${v.id}?tab=docs`, tint: AREA.docs },
+    { icon: 'book-open-variant', title: 'Manuals & research', detail: 'Recalls, videos, forums, saved references', path: `/vehicle/${v.id}?tab=intel`, tint: AREA.research },
+    { icon: 'calendar-check-outline', title: 'Service schedule', detail: 'Intervals, history and what is due', path: `/vehicle/${v.id}?tab=service`, tint: AREA.service },
   ];
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -308,8 +312,8 @@ function HelpSheet({ v, visible, onClose }: { v: Vehicle; visible: boolean; onCl
         <Text style={[styles.sub, { marginBottom: 8 }]}>{v.nickname || `${v.make} ${v.model}`}</Text>
         {items.map((it) => (
           <Pressable key={it.title} onPress={() => go(it.path)} style={({ pressed }) => [styles.helpRow, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
-            <View style={styles.helpIcon}>
-              <Icon name={it.icon} size={22} color={C.accent} />
+            <View style={[styles.helpIcon, { backgroundColor: it.tint + '1f' }]}>
+              <Icon name={it.icon} size={22} color={it.tint} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.alertTitle}>{it.title}</Text>
@@ -326,8 +330,8 @@ function HelpSheet({ v, visible, onClose }: { v: Vehicle; visible: boolean; onCl
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0a0b0d' },
   top: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  brand: { color: C.text, fontFamily: F.displayBold, fontSize: 20, letterSpacing: 5 },
-  count: { color: C.accent, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.4, marginTop: 2, textTransform: 'uppercase', ...NUM },
+  brand: { color: C.text, fontFamily: F.semibold, fontSize: 17, letterSpacing: 2.5 },
+  count: { color: C.dim, fontFamily: F.mono, fontSize: 11, marginTop: 3, ...NUM },
   live: { position: 'absolute', alignSelf: 'center' },
   liveInner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.red },
@@ -335,30 +339,30 @@ const styles = StyleSheet.create({
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12, gap: 12, alignItems: 'center' },
   pagerRow: { width: '100%', maxWidth: 560, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: 4 },
   dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  dot: { width: 14, height: 3, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.22)' },
-  dotOn: { width: 28, backgroundColor: C.accent },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
+  dotOn: { width: 22, backgroundColor: C.text },
   sheet: { width: '100%', maxWidth: 560, padding: 18, gap: 16 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  name: { color: C.text, fontFamily: F.displayBold, fontSize: 32, letterSpacing: 0.4, textTransform: 'uppercase', lineHeight: 34 },
-  sub: { color: C.dim, fontFamily: F.mono, fontSize: 11, letterSpacing: 0.8, lineHeight: 16, textTransform: 'uppercase' },
-  details: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 12, paddingRight: 6, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: C.glassEdge, backgroundColor: 'rgba(255,255,255,0.05)' },
-  detailsText: { color: C.text, fontFamily: F.display, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase' },
+  name: { color: C.text, fontFamily: F.semibold, fontSize: 28, letterSpacing: -0.9, lineHeight: 32 },
+  sub: { color: C.dim, fontFamily: F.regular, fontSize: 13.5, lineHeight: 18, marginTop: 2 },
+  details: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 12, paddingRight: 6, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: C.glassEdge, backgroundColor: 'rgba(255,255,255,0.05)' },
+  detailsText: { color: C.text, fontFamily: F.medium, fontSize: 13.5 },
   stats: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
   vr: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.14)' },
-  metricLabel: { color: C.faint, fontFamily: F.mono, fontSize: 9.5, letterSpacing: 1.2, textTransform: 'uppercase' },
-  metricValue: { color: C.text, fontFamily: F.displayBold, fontSize: 27, letterSpacing: 0.2, ...NUM },
-  metricUnit: { color: C.dim, fontFamily: F.mono, fontSize: 10.5, ...NUM },
-  alert: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, paddingLeft: 16, paddingRight: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: C.glassEdge, overflow: 'hidden' },
+  metricLabel: { color: C.faint, fontFamily: F.mono, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
+  metricValue: { color: C.text, fontFamily: F.semibold, fontSize: 22, letterSpacing: -0.6, ...NUM },
+  metricUnit: { color: C.dim, fontFamily: F.regular, fontSize: 12.5, ...NUM },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, paddingLeft: 14, paddingRight: 10, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: C.glassEdge, overflow: 'hidden' },
   alertIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 6 },
+  edge: { position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 2, overflow: 'hidden' },
   alertTitle: { color: C.text, fontFamily: F.semibold, fontSize: 14.5 },
-  alertDetail: { color: C.dim, fontFamily: F.mono, fontSize: 11, marginTop: 2, ...NUM },
+  alertDetail: { color: C.dim, fontFamily: F.regular, fontSize: 12.5, marginTop: 1, ...NUM },
   more: { color: C.dim, fontFamily: F.medium, fontSize: 12, paddingLeft: 10 },
   allGood: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
   allGoodText: { color: C.dim, fontFamily: F.regular, fontSize: 13 },
   actions: { flexDirection: 'row', gap: 10 },
-  cta: { marginTop: 16, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.accent, borderRadius: 12, minHeight: 52 },
-  ctaText: { color: C.onAccent, fontFamily: F.displayBold, fontSize: 17, letterSpacing: 1.2, textTransform: 'uppercase' },
+  cta: { marginTop: 16, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primary, borderRadius: 14, minHeight: 52 },
+  ctaText: { color: C.onPrimary, fontFamily: F.semibold, fontSize: 16 },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
   helpSheet: {
     overflow: 'hidden',
@@ -375,5 +379,5 @@ const styles = StyleSheet.create({
   },
   grabber: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.borderStrong, alignSelf: 'center', marginBottom: 12 },
   helpRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
-  helpIcon: { width: 44, height: 44, borderRadius: 11, backgroundColor: C.accentSoft, borderWidth: 1, borderColor: 'rgba(242,169,59,0.3)', alignItems: 'center', justifyContent: 'center' },
+  helpIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

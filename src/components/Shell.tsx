@@ -79,8 +79,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backText: { color: C.text, fontSize: 26, lineHeight: 28, marginTop: -2, fontFamily: F.regular },
-  eyebrow: { color: C.accent, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.6, textTransform: 'uppercase' },
-  title: { color: C.text, fontFamily: F.displayBold, fontSize: 28, letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 1 },
+  eyebrow: { color: C.dim, fontFamily: F.mono, fontSize: 11, letterSpacing: 0.4 },
+  title: { color: C.text, fontFamily: F.semibold, fontSize: 28, letterSpacing: -0.9, marginTop: 2 },
   body: { paddingHorizontal: 16, paddingTop: 4 },
   column: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 14 },
 });
