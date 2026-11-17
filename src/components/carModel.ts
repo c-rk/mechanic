@@ -52,6 +52,30 @@ function wheel(r: number, w: number, m: ReturnType<typeof materials>) {
   return g;
 }
 
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * Rounds an extruded slab into a car-like volume: the nose and tail narrow in plan view and the
+ * sides tuck in towards the top, so the silhouette no longer reads as a flat cut-out.
+ */
+function sculpt(geo: THREE.BufferGeometry, xMin: number, xMax: number, yLow: number, yTop: number, ends = 0.22, tuck = 0.08) {
+  const mid = (xMin + xMax) / 2;
+  const half = (xMax - xMin) / 2;
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const plan = 1 - ends * Math.pow(smoothstep(0.55, 1, Math.abs(x - mid) / half), 1.6);
+    const side = 1 - tuck * smoothstep(yLow, yTop, y);
+    pos.setZ(i, pos.getZ(i) * plan * side);
+  }
+  pos.needsUpdate = true;
+  return geo;
+}
+
 function buildCar(spec: BodySpec, color: string, photo: boolean) {
   const m = materials(color);
   const car = new THREE.Group();
@@ -73,12 +97,17 @@ function buildCar(spec: BodySpec, color: string, photo: boolean) {
     body.lineTo(wx - arch, c);
   }
   body.closePath();
-  car.add(new THREE.Mesh(extrude(body, W, 0.1), m.paint));
+  const topY = Math.max(...spec.top.map((p) => p[1]));
+  car.add(new THREE.Mesh(sculpt(extrude(body, W, 0.1), first[0], last[0], c + 0.2, topY), m.paint));
 
   const dome = new THREE.SplineCurve(spec.cabin.map(([x, y]) => new THREE.Vector2(x, y))).getPoints(48);
   const cabin = new THREE.Shape(dome);
   cabin.closePath();
-  car.add(new THREE.Mesh(extrude(cabin, W * 0.84, 0.06), m.glass));
+  const cx = spec.cabin.map((p) => p[0]);
+  const cy = spec.cabin.map((p) => p[1]);
+  // Greenhouse: stronger tumblehome than the body.
+  const glass = (g: THREE.BufferGeometry) => sculpt(g, Math.min(...cx), Math.max(...cx), Math.min(...cy), Math.max(...cy), 0.12, 0.2);
+  car.add(new THREE.Mesh(glass(extrude(cabin, W * 0.84, 0.06)), m.glass));
 
   // Painted roof skin: the top of the dome between the screen headers, as a thin band over the glass.
   const roofTop = dome.filter((pt) => pt.x >= spec.cabin[1][0] && pt.x <= spec.cabin[2][0]);
@@ -86,7 +115,7 @@ function buildCar(spec: BodySpec, color: string, photo: boolean) {
     ...roofTop.map((pt) => new THREE.Vector2(pt.x, pt.y + 0.015)),
     ...roofTop.map((pt) => new THREE.Vector2(pt.x, pt.y - 0.05)).reverse(),
   ]);
-  car.add(new THREE.Mesh(extrude(roof, W * 0.87, 0.03), m.paint));
+  car.add(new THREE.Mesh(glass(extrude(roof, W * 0.87, 0.03)), m.paint));
 
   for (const sx of [1, -1]) {
     for (const sz of [1, -1]) {
@@ -95,9 +124,10 @@ function buildCar(spec: BodySpec, color: string, photo: boolean) {
       car.add(w);
       // Lamps and grille are drawn by the photo when one is wrapped on.
       if (photo) continue;
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, W * 0.2), sx > 0 ? m.head : m.tail);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, W * 0.15), sx > 0 ? m.head : m.tail);
       const end = sx > 0 ? last : first;
-      lamp.position.set(end[0] - sx * 0.02, end[1] + 0.06, sz * W * 0.33);
+      // Inside the rounded nose/tail so the lamp sits flush instead of floating.
+      lamp.position.set(end[0] - sx * 0.045, end[1] + 0.05, sz * W * 0.26);
       car.add(lamp);
     }
   }
@@ -150,11 +180,6 @@ function buildMotorcycle(color: string) {
   g.add(bar(v(-0.9, 0.42, 0.17), v(0.1, 0.34, 0.17), 0.045, m.rim));
   return g;
 }
-
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 /**
  * Body extruded from the roofline fitted to the user's side photo. The single extrusion is then

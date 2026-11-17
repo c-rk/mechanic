@@ -7,7 +7,7 @@ module.exports = defineConfig([
   { ignores: ['dist/*', 'worker/*'] },
   {
     // react-three-fiber elements (<mesh>, <ambientLight>, ...) take three.js properties, not DOM ones.
-    files: ['src/components/Viewer3D.tsx'],
+    files: ['src/components/Viewer3D.tsx', 'src/components/garage/GarageScene.tsx'],
     rules: { 'react/no-unknown-property': 'off' },
   },
 ]);

@@ -1,15 +1,12 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, PanResponder, StyleSheet, Text, View } from 'react-native';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-import { fileUrl } from '../lib/files';
 import { C, F } from '../lib/theme';
 import type { BodyType, Wrap } from '../lib/types';
-import { buildVehicle, normaliseImported } from './carModel';
-import { useWrapTextures } from './useWrapTextures';
+import { contactShadow, useVehicleModel } from './useVehicleModel';
 
 interface Props {
   bodyType: BodyType;
@@ -52,26 +49,6 @@ function Environment() {
 }
 
 const BACKDROP = '#0e1013';
-
-/** Soft elliptical contact shadow, generated once. */
-let shadowTexture: THREE.DataTexture | undefined;
-function contactShadow() {
-  if (shadowTexture) return shadowTexture;
-  const n = 64;
-  const data = new Uint8Array(n * n * 4);
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      const dx = (x + 0.5) / n - 0.5;
-      const dy = (y + 0.5) / n - 0.5;
-      const r = Math.min(1, Math.hypot(dx, dy * 2.1) * 2);
-      data[(y * n + x) * 4 + 3] = Math.round(Math.pow(1 - r, 1.8) * 0.85 * 255);
-    }
-  }
-  shadowTexture = new THREE.DataTexture(data, n, n);
-  shadowTexture.magFilter = THREE.LinearFilter;
-  shadowTexture.needsUpdate = true;
-  return shadowTexture;
-}
 
 function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: number; spin: React.RefObject<Spin>; still?: boolean }) {
   const turntable = useRef<THREE.Group>(null);
@@ -122,27 +99,7 @@ function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: 
 
 export function Viewer3D({ bodyType, color, modelRef, wrap, height = 280, initialYaw = -0.65, still }: Props) {
   const spin = useRef<Spin>({ yaw: initialYaw, velocity: 0, dragging: false });
-  const [imported, setImported] = useState<{ ref: string; object: THREE.Group; length: number } | null>(null);
-  const [failedRef, setFailedRef] = useState<string | null>(null);
-  const photo = useWrapTextures(modelRef ? undefined : wrap, bodyType);
-
-  useEffect(() => {
-    let live = true;
-    if (!modelRef) return;
-    fileUrl(modelRef)
-      .then((url) => new GLTFLoader().loadAsync(url))
-      .then((gltf) => live && setImported({ ref: modelRef, ...normaliseImported(gltf.scene) }))
-      .catch(() => live && setFailedRef(modelRef));
-    return () => {
-      live = false;
-    };
-  }, [modelRef]);
-
-  const builtIn = useMemo(
-    () => buildVehicle(bodyType, color, photo.textures ? { wrap: photo.textures, fit: wrap?.shape } : {}),
-    [bodyType, color, photo.textures, wrap?.shape],
-  );
-  const shown = modelRef && imported?.ref === modelRef ? imported : builtIn;
+  const { model: shown, loading, note } = useVehicleModel({ bodyType, color, modelRef, wrap });
 
   // The ref is read only inside gesture callbacks, never while rendering.
   // eslint-disable-next-line react-hooks/refs
@@ -170,8 +127,6 @@ export function Viewer3D({ bodyType, color, modelRef, wrap, height = 280, initia
     });
   });
 
-  const note =
-    modelRef && failedRef === modelRef ? 'Model could not be loaded' : photo.error ? 'Photo wrap could not be loaded' : '';
 
   return (
     <View style={[styles.wrap, { height }]} {...pan.panHandlers}>
@@ -181,7 +136,7 @@ export function Viewer3D({ bodyType, color, modelRef, wrap, height = 280, initia
           <Stage model={shown.object} length={shown.length} spin={spin} still={still} />
         </Canvas>
       </View>
-      {photo.loading ? <ActivityIndicator color={C.dim} style={styles.spinner} /> : null}
+      {loading ? <ActivityIndicator color={C.dim} style={styles.spinner} /> : null}
       {note ? <Text style={styles.note}>{note}</Text> : null}
     </View>
   );

@@ -1,191 +1,353 @@
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Shell } from '../components/Shell';
-import { Badge, Button, FormModal, Panel, Stat, T } from '../components/ui';
-import { Viewer3D } from '../components/Viewer3D';
-import { describeDue, dueInfo, fmtNum, fuelStats, sortByDue } from '../lib/calc';
+import { GarageScene, type GarageCamera } from '../components/garage/GarageScene';
+import { ActionTile, Glass, GlassButton, Icon, type IconName } from '../components/garage/Glass';
+import { QuickLog, type QuickKind } from '../components/QuickLog';
+import { vehicleAlerts, type VehicleAlert } from '../lib/alerts';
+import { dueInfo, fmtNum, fuelStats, sortByDue, type DueInfo } from '../lib/calc';
 import { estimateOdometer, METERS_PER } from '../lib/odometer';
 import { useStore } from '../lib/store';
-import { C, F, NUM, STATE_COLOR } from '../lib/theme';
+import { C, F, NUM } from '../lib/theme';
 import { useTrip } from '../lib/trip';
+import type { Vehicle } from '../lib/types';
+
+const LEVEL_COLOR = { critical: C.red, warn: C.yellow, info: C.accent } as const;
+/** Share of the screen the info sheet covers; the 3D scene frames the car above it. */
+const SHEET_SHARE = 0.46;
+
+const tick = () => {
+  if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => undefined);
+};
 
 export default function Garage() {
   const vehicles = useStore((s) => s.vehicles);
+  const trip = useTrip((s) => s.trip);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [index, setIndex] = useState(0);
+  const [quick, setQuick] = useState<QuickKind | null>(null);
+  const [help, setHelp] = useState(false);
+  const active = Math.min(index, Math.max(0, vehicles.length - 1));
+  const v = vehicles[active];
+
+  // Camera state read by the 3D scene every frame; the gesture writes to it without re-rendering.
+  const cam = useRef<GarageCamera>({ index: active, drag: 0, bottomInset: SHEET_SHARE });
+  useEffect(() => {
+    cam.current.index = active;
+  }, [active]);
+
+  const count = vehicles.length;
+  const pan = useMemo(() => {
+    const go = (i: number) => {
+      cam.current.index = i;
+      setIndex(i);
+      tick();
+    };
+    // The gesture only reads and writes the camera ref inside its callbacks, never during render.
+    // eslint-disable-next-line react-hooks/refs
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, g) => {
+        let d = -g.dx / width;
+        const i = cam.current.index;
+        // Resist past the first and last bay.
+        if ((i === 0 && d < 0) || (i >= count - 1 && d > 0)) d *= 0.25;
+        cam.current.drag = d * 1.15;
+      },
+      onPanResponderRelease: (_, g) => {
+        const i = cam.current.index;
+        cam.current.drag = 0;
+        if (Math.abs(g.dx) < 6 && Math.abs(g.dy) < 6) {
+          const cur = useStore.getState().vehicles[i];
+          if (cur) router.push(`/vehicle/${cur.id}`);
+          return;
+        }
+        const fling = Math.abs(g.vx) > 0.35;
+        if ((g.dx < -width * 0.22 || (fling && g.vx < 0)) && i < count - 1) go(i + 1);
+        else if ((g.dx > width * 0.22 || (fling && g.vx > 0)) && i > 0) go(i - 1);
+      },
+      onPanResponderTerminate: () => {
+        cam.current.drag = 0;
+      },
+    });
+  }, [count, width]);
+
+  return (
+    <View style={styles.root}>
+      <GarageScene vehicles={vehicles} cam={cam} />
+      <View style={StyleSheet.absoluteFill} {...pan.panHandlers} />
+
+      {/* Top bar */}
+      <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+        <View>
+          <Text style={styles.brand}>
+            BAY <Text style={{ color: C.accent }}>ONE</Text>
+          </Text>
+          <Text style={styles.count}>{count ? `Bay ${String(active + 1).padStart(2, '0')} of ${String(count).padStart(2, '0')}` : 'Empty garage'}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <GlassButton icon="plus" label="Add vehicle" onPress={() => router.push('/vehicle/new')} />
+          <GlassButton icon="cog-outline" label="Settings" onPress={() => router.push('/settings')} />
+        </View>
+      </View>
+
+      {trip ? (
+        <Pressable onPress={() => router.push('/trip')} style={[styles.live, { top: insets.top + 64 }]} accessibilityRole="button" accessibilityLabel="Open drive recorder">
+          <Glass radius={999} style={styles.liveInner}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>
+              Recording · {fmtNum(trip.meters / METERS_PER[useStore.getState().settings.distanceUnit], 1)} {useStore.getState().settings.distanceUnit}
+            </Text>
+          </Glass>
+        </Pressable>
+      ) : null}
+
+      {/* Bottom: pager, help, info sheet */}
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]} pointerEvents="box-none">
+        <View style={styles.pagerRow} pointerEvents="box-none">
+          <View style={{ width: 48 }} />
+          <View style={styles.dots}>
+            {vehicles.map((x, i) => (
+              <Pressable key={x.id} onPress={() => (setIndex(i), tick())} hitSlop={8} accessibilityLabel={`Show ${x.nickname || x.model}`}>
+                <View style={[styles.dot, i === active && styles.dotOn]} />
+              </Pressable>
+            ))}
+          </View>
+          {v ? <GlassButton icon="lifebuoy" label="Help" size={48} onPress={() => setHelp(true)} /> : <View style={{ width: 48 }} />}
+        </View>
+        {v ? <InfoSheet v={v} onQuick={setQuick} /> : <EmptySheet />}
+      </View>
+
+      {v ? <QuickLog v={v} kind={quick} onClose={() => setQuick(null)} /> : null}
+      {v ? <HelpSheet v={v} visible={help} onClose={() => setHelp(false)} /> : null}
+    </View>
+  );
+}
+
+function InfoSheet({ v, onQuick }: { v: Vehicle; onQuick: (k: QuickKind) => void }) {
   const fuel = useStore((s) => s.fuel);
   const maintenance = useStore((s) => s.maintenance);
   const odoLog = useStore((s) => s.odoLog);
+  const recalls = useStore((s) => s.recalls);
   const settings = useStore((s) => s.settings);
-  const logOdometer = useStore((s) => s.logOdometer);
-  const trip = useTrip((s) => s.trip);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [odoOpen, setOdoOpen] = useState(false);
-  const v = vehicles.find((x) => x.id === selectedId) ?? vehicles[0];
   const u = settings.distanceUnit;
-
-  const setup = <Button label="Setup" tone="secondary" small onPress={() => router.push('/settings')} />;
-
-  if (!v) {
-    return (
-      <Shell title="Garage" right={setup}>
-        <View style={styles.hero}>
-          <Viewer3D bodyType="coupe" color="#6d737b" height={300} />
-        </View>
-        <Text style={T.title}>Park your first vehicle</Text>
-        <Text style={T.dim}>
-          Add it by VIN or by make and model. Bay One keeps its fuel log, service schedule, parts, documents and research
-          in one place, stored on this device.
-        </Text>
-        <Button label="Add vehicle" onPress={() => router.push('/vehicle/new')} />
-      </Shell>
-    );
-  }
 
   const stats = fuelStats(fuel.filter((f) => f.vehicleId === v.id), settings);
   const odo = estimateOdometer(odoLog.filter((r) => r.vehicleId === v.id), v.odometer);
   const next = sortByDue(maintenance.filter((m) => m.vehicleId === v.id).map((m) => ({ m, due: dueInfo(m, odo.estimate, odo.perDay) }))).find(
     (x) => x.due.state !== 'unknown',
   );
-  const stale = settings.odoReminderDays > 0 && odo.daysSinceReading >= settings.odoReminderDays;
-  const tripHere = trip && trip.vehicleId === v.id;
+  const alerts = vehicleAlerts(v, { maintenance, odoLog, recalls, settings });
 
   return (
-    <Shell title="Garage" right={setup}>
-      {trip ? (
-        <Pressable onPress={() => router.push('/trip')} style={styles.live} accessibilityRole="button" accessibilityLabel="Open drive recorder">
-          <View style={styles.liveDot} />
-          <Text style={[T.strong, { flex: 1 }]}>Recording drive</Text>
-          <Text style={[T.strong, NUM]}>
-            {fmtNum(trip.meters / METERS_PER[u], 1)} {u}
+    <Glass style={styles.sheet}>
+      <Pressable onPress={() => router.push(`/vehicle/${v.id}`)} style={styles.head} accessibilityRole="button" accessibilityLabel="Open vehicle details">
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.name} numberOfLines={1}>
+            {v.nickname || `${v.make} ${v.model}`}
           </Text>
-        </Pressable>
-      ) : null}
-
-      <Pressable onPress={() => router.push(`/vehicle/${v.id}`)} accessibilityRole="button" accessibilityLabel={`Open ${v.nickname || v.model}`}>
-        <View style={styles.hero}>
-          <Viewer3D bodyType={v.bodyType} color={v.color} modelRef={v.modelRef} wrap={v.wrap} height={300} />
-          <View style={styles.heroCaption} pointerEvents="none">
-            <Text style={styles.heroName} numberOfLines={1}>
-              {v.nickname || `${v.make} ${v.model}`}
-            </Text>
-            <Text style={T.dim}>{[v.year, v.make, v.model, v.trim].filter(Boolean).join(' ')}</Text>
-          </View>
+          <Text style={styles.sub} numberOfLines={1}>
+            {[v.year, v.make, v.model, v.trim].filter(Boolean).join(' ')}
+          </Text>
+        </View>
+        <View style={styles.details}>
+          <Text style={styles.detailsText}>Details</Text>
+          <Icon name="chevron-right" size={18} color={C.dim} />
         </View>
       </Pressable>
 
-      {stale ? (
-        <Panel>
-          <Text style={T.strong}>Time for an odometer reading</Text>
-          <Text style={[T.dim, { marginTop: 4 }]}>
-            Last logged {Math.floor(odo.daysSinceReading)} days ago.
-            {odo.perDay !== null ? ` At your average of ${fmtNum(odo.perDay)} ${u}/day it should read about ${fmtNum(odo.estimate)} ${u}.` : ''}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-            <Button label="Enter reading" small onPress={() => setOdoOpen(true)} />
-            <Button label="Record drives by GPS" tone="secondary" small onPress={() => router.push('/trip')} />
-          </View>
-        </Panel>
-      ) : null}
-
       <View style={styles.stats}>
-        <Stat
-          flex={1.25}
-          label="Odometer"
-          value={fmtNum(v.odometer)}
-          unit={u}
-          hint={odo.perDay !== null ? `≈ ${fmtNum(odo.perDay)} ${u}/day` : 'Pace not known yet'}
-        />
-        <Stat
-          flex={1}
-          label="Consumption"
-          value={stats.economy === null ? '—' : stats.economy.toFixed(1)}
-          unit={stats.economy === null ? undefined : stats.economyLabel}
-          color={stats.economy === null ? C.faint : C.text}
-          hint={stats.economy === null ? 'Needs two full fills' : `${stats.series.length} fills`}
+        <Metric label="Odometer" value={fmtNum(v.odometer)} unit={u} />
+        <View style={styles.vr} />
+        <Metric label="Consumption" value={stats.economy === null ? '—' : stats.economy.toFixed(1)} unit={stats.economy === null ? '' : stats.economyLabel} />
+        <View style={styles.vr} />
+        <Metric
+          label="Next service"
+          value={!next ? '—' : next.due.state === 'overdue' ? 'Overdue' : nextIn(next.due, u)}
+          unit={next ? next.m.name : 'Mark a service done'}
+          color={next ? STATE_TEXT[next.due.state] : undefined}
         />
       </View>
 
-      <Panel title="Next up" right={<Button label="Schedule" tone="ghost" small onPress={() => router.push(`/vehicle/${v.id}?tab=service`)} />}>
-        {next ? (
-          <View style={styles.next}>
-            <Badge text={next.due.state} color={STATE_COLOR[next.due.state]} />
-            <Text style={[T.strong, { flex: 1 }]} numberOfLines={1}>
-              {next.m.name}
+      {alerts.length ? (
+        <View style={{ gap: 6 }}>
+          {alerts.slice(0, 2).map((a) => (
+            <AlertRow key={a.id} a={a} v={v} />
+          ))}
+          {alerts.length > 2 ? (
+            <Text style={styles.more} onPress={() => router.push(`/vehicle/${v.id}?tab=service`)}>
+              +{alerts.length - 2} more
             </Text>
-            <Text style={[T.small, { color: C.dim }]}>{describeDue(next.due, u)}</Text>
-          </View>
-        ) : (
-          <Text style={T.dim}>Mark a service as done to start its countdown.</Text>
-        )}
-      </Panel>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.allGood}>
+          <Icon name="check-circle-outline" size={18} color={C.green} />
+          <Text style={styles.allGoodText}>No alerts. Everything logged is up to date.</Text>
+        </View>
+      )}
 
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Button label="Open" onPress={() => router.push(`/vehicle/${v.id}`)} style={{ flex: 1 }} />
-        <Button label={tripHere ? 'Drive in progress' : 'Record drive'} tone="secondary" onPress={() => router.push('/trip')} style={{ flex: 1 }} />
+      <View style={styles.actions}>
+        <ActionTile icon="gas-station-outline" label="Fuel" onPress={() => onQuick('fuel')} />
+        <ActionTile icon="counter" label="Odometer" onPress={() => onQuick('odo')} />
+        <ActionTile icon="wrench-outline" label="Service" onPress={() => onQuick('service')} />
+        <ActionTile icon="map-marker-path" label="Drive" onPress={() => router.push('/trip')} />
       </View>
+    </Glass>
+  );
+}
 
-      <Text style={[T.label, { marginTop: 8 }]}>Vehicles</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-        {vehicles.map((x) => {
-          const on = x.id === v.id;
-          return (
-            <Pressable
-              key={x.id}
-              onPress={() => setSelectedId(x.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`Select ${x.nickname || x.model}`}
-              style={[styles.slot, on && styles.slotOn]}>
-              <View style={[styles.swatch, { backgroundColor: x.color }]} />
-              <Text style={T.strong} numberOfLines={1}>
-                {x.nickname || x.model}
-              </Text>
-              <Text style={T.small} numberOfLines={1}>
-                {fmtNum(x.odometer)} {u}
-              </Text>
-            </Pressable>
-          );
-        })}
-        <Pressable onPress={() => router.push('/vehicle/new')} accessibilityRole="button" accessibilityLabel="Add vehicle" style={[styles.slot, styles.slotAdd]}>
-          <Text style={styles.plus}>+</Text>
-          <Text style={T.dim}>Add</Text>
-        </Pressable>
-      </ScrollView>
+const STATE_TEXT = { overdue: C.red, soon: C.yellow, ok: C.text, unknown: C.text } as const;
 
-      <FormModal
-        visible={odoOpen}
-        title="Odometer reading"
-        fields={[{ key: 'odometer', label: `Current reading (${u})`, kind: 'number', required: true }]}
-        initial={{ odometer: undefined }}
-        onClose={() => setOdoOpen(false)}
-        onSave={(x) => {
-          logOdometer(v.id, x.odometer as number, 'manual');
-          setOdoOpen(false);
-        }}
-      />
-    </Shell>
+/** Shortest useful countdown: days when known, else distance. */
+function nextIn(d: DueInfo, u: string) {
+  const days = d.daysLeft ?? d.etaDays;
+  if (days !== undefined && (d.distanceLeft === undefined || d.etaDays !== undefined || d.daysLeft !== undefined)) {
+    return days > 60 ? `${Math.round(days / 30)} mo` : `${days} d`;
+  }
+  return d.distanceLeft !== undefined ? `${fmtNum(d.distanceLeft)} ${u}` : '—';
+}
+
+function Metric({ label, value, unit, color }: { label: string; value: string; unit: string; color?: string }) {
+  return (
+    <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, color ? { color } : null]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      <Text style={styles.metricUnit} numberOfLines={1}>
+        {unit}
+      </Text>
+    </View>
+  );
+}
+
+function AlertRow({ a, v }: { a: VehicleAlert; v: Vehicle }) {
+  const color = LEVEL_COLOR[a.level];
+  return (
+    <Pressable onPress={() => router.push(`/vehicle/${v.id}?tab=${a.tab}`)} style={({ pressed }) => [styles.alert, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.title}>
+      <View style={[styles.alertIcon, { backgroundColor: color + '26' }]}>
+        <Icon name={a.icon as IconName} size={16} color={color} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.alertTitle} numberOfLines={1}>
+          {a.title}
+        </Text>
+        <Text style={styles.alertDetail} numberOfLines={1}>
+          {a.detail}
+        </Text>
+      </View>
+      <Icon name="chevron-right" size={18} color={C.faint} />
+    </Pressable>
+  );
+}
+
+function EmptySheet() {
+  return (
+    <Glass style={styles.sheet}>
+      <Text style={styles.name}>Your garage is empty</Text>
+      <Text style={[styles.sub, { marginTop: 4 }]}>
+        Park a vehicle by VIN or by make and model. Fuel, service, parts and documents stay on this device.
+      </Text>
+      <Pressable onPress={() => router.push('/vehicle/new')} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.8 }]} accessibilityRole="button" accessibilityLabel="Add vehicle">
+        <Icon name="plus" size={20} color={C.onAccent} />
+        <Text style={styles.ctaText}>Add vehicle</Text>
+      </Pressable>
+    </Glass>
+  );
+}
+
+function HelpSheet({ v, visible, onClose }: { v: Vehicle; visible: boolean; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const go = (path: string) => {
+    onClose();
+    router.push(path as never);
+  };
+  const items: { icon: IconName; title: string; detail: string; path: string }[] = [
+    { icon: 'robot-outline', title: 'Ask the mechanic', detail: 'Describe a symptom, noise or warning light', path: `/vehicle/assistant?id=${v.id}` },
+    { icon: 'folder-outline', title: 'Documents', detail: 'Registration, insurance, invoices, manuals', path: `/vehicle/${v.id}?tab=docs` },
+    { icon: 'book-open-variant', title: 'Manuals & research', detail: 'Recalls, videos, forums, saved references', path: `/vehicle/${v.id}?tab=intel` },
+    { icon: 'calendar-check-outline', title: 'Service schedule', detail: 'Intervals, history and what is due', path: `/vehicle/${v.id}?tab=service` },
+  ];
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close help" />
+      <View style={[styles.helpSheet, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={styles.grabber} />
+        <Text style={[styles.name, { fontSize: 22 }]}>How can we help?</Text>
+        <Text style={[styles.sub, { marginBottom: 8 }]}>{v.nickname || `${v.make} ${v.model}`}</Text>
+        {items.map((it) => (
+          <Pressable key={it.title} onPress={() => go(it.path)} style={({ pressed }) => [styles.helpRow, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
+            <View style={styles.helpIcon}>
+              <Icon name={it.icon} size={22} color={C.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertTitle}>{it.title}</Text>
+              <Text style={styles.alertDetail}>{it.detail}</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={C.faint} />
+          </Pressable>
+        ))}
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
-  heroCaption: { position: 'absolute', left: 18, right: 18, bottom: 16 },
-  heroName: { color: C.text, fontFamily: F.bold, fontSize: 28, letterSpacing: -0.8 },
-  live: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: C.accentSoft,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
+  root: { flex: 1, backgroundColor: '#0a0b0d' },
+  top: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  brand: { color: C.text, fontFamily: F.bold, fontSize: 15, letterSpacing: 4 },
+  count: { color: C.dim, fontFamily: F.medium, fontSize: 12, marginTop: 2, ...NUM },
+  live: { position: 'absolute', alignSelf: 'center' },
+  liveInner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.red },
-  stats: { flexDirection: 'row', gap: 10 },
-  next: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  slot: { width: 132, padding: 14, gap: 6, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  slotOn: { borderColor: C.accent },
-  slotAdd: { alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderColor: C.borderStrong },
-  swatch: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.surface3 },
-  plus: { color: C.dim, fontFamily: F.regular, fontSize: 26, lineHeight: 28 },
+  liveText: { color: C.text, fontFamily: F.semibold, fontSize: 13, ...NUM },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12, gap: 12, alignItems: 'center' },
+  pagerRow: { width: '100%', maxWidth: 560, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: 4 },
+  dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
+  dotOn: { width: 22, backgroundColor: C.text },
+  sheet: { width: '100%', maxWidth: 560, padding: 18, gap: 16 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  name: { color: C.text, fontFamily: F.bold, fontSize: 26, letterSpacing: -0.7 },
+  sub: { color: C.dim, fontFamily: F.regular, fontSize: 13, lineHeight: 18 },
+  details: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 12, paddingRight: 6, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  detailsText: { color: C.text, fontFamily: F.semibold, fontSize: 13 },
+  stats: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  vr: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.14)' },
+  metricLabel: { color: C.faint, fontFamily: F.semibold, fontSize: 10, letterSpacing: 0.9, textTransform: 'uppercase' },
+  metricValue: { color: C.text, fontFamily: F.bold, fontSize: 21, letterSpacing: -0.5, ...NUM },
+  metricUnit: { color: C.dim, fontFamily: F.medium, fontSize: 12, ...NUM },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)' },
+  alertIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  alertTitle: { color: C.text, fontFamily: F.semibold, fontSize: 14 },
+  alertDetail: { color: C.dim, fontFamily: F.regular, fontSize: 12, marginTop: 1, ...NUM },
+  more: { color: C.dim, fontFamily: F.medium, fontSize: 12, paddingLeft: 10 },
+  allGood: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
+  allGoodText: { color: C.dim, fontFamily: F.regular, fontSize: 13 },
+  actions: { flexDirection: 'row', gap: 10 },
+  cta: { marginTop: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.accent, borderRadius: 16, minHeight: 52 },
+  ctaText: { color: C.onAccent, fontFamily: F.semibold, fontSize: 16 },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  helpSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    gap: 6,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.borderStrong,
+  },
+  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.surface3, alignSelf: 'center', marginBottom: 12 },
+  helpRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
+  helpIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
 });
