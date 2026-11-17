@@ -131,10 +131,12 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
         {upcoming.length === 0 ? <Empty text="Log when each task was last done to start the countdown." /> : null}
         {upcoming.map(({ m, due: d }, i) => (
           <Row key={m.id} last={i === upcoming.length - 1}>
-            <Text style={[T.body, { flex: 1 }]} numberOfLines={1}>
-              {m.name}
-            </Text>
-            <Text style={T.small}>{describeDue(d, settings.distanceUnit)}</Text>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={T.strong} numberOfLines={1}>
+                {m.name}
+              </Text>
+              <Text style={T.small}>{describeDue(d, settings.distanceUnit)}</Text>
+            </View>
             <Badge text={d.state} color={STATE_COLOR[d.state]} />
           </Row>
         ))}

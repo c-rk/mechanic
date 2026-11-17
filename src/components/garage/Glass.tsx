@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 import { C, F } from '../../lib/theme';
+import { Bevel } from '../ui';
 
 export type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -15,12 +16,13 @@ export function Icon({ name, size = 22, color = C.text }: { name: IconName; size
  * Frosted panel. iOS and web blur what is behind; Android cannot blur a GL surface, so it uses a
  * denser translucent fill instead.
  */
-export function Glass({ children, style, radius = 28 }: { children?: ReactNode; style?: StyleProp<ViewStyle>; radius?: number }) {
+export function Glass({ children, style, radius = 26 }: { children?: ReactNode; style?: StyleProp<ViewStyle>; radius?: number }) {
   const blur = Platform.OS !== 'android';
   return (
     <View style={[{ borderRadius: radius, overflow: 'hidden' }, styles.edge, style]}>
-      {blur ? <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} /> : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: blur ? 'rgba(16,18,22,0.55)' : 'rgba(16,18,22,0.92)' }]} />
+      {blur ? <BlurView intensity={45} tint="dark" style={StyleSheet.absoluteFill} /> : null}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: blur ? 'rgba(18,19,22,0.5)' : 'rgba(18,19,22,0.9)' }]} />
+      <Bevel radius={radius} />
       {children}
     </View>
   );
@@ -42,6 +44,7 @@ export function ActionTile({ icon, label, onPress, tint = C.text }: { icon: Icon
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.95 }], opacity: 0.8 }]}>
       <View style={styles.tileIcon}>
+        <Bevel radius={14} />
         <Icon name={icon} size={24} color={tint} />
       </View>
       <Text style={styles.tileLabel} numberOfLines={1}>
@@ -52,16 +55,19 @@ export function ActionTile({ icon, label, onPress, tint = C.text }: { icon: Icon
 }
 
 const styles = StyleSheet.create({
-  edge: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.14)' },
+  edge: { borderWidth: 1, borderColor: C.glassEdge },
   tile: { flex: 1, alignItems: 'center', gap: 7 },
   tileIcon: {
     width: '100%',
     aspectRatio: 1.25,
     maxHeight: 62,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: C.glassEdge,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileLabel: { color: C.dim, fontFamily: F.medium, fontSize: 12 },
+  tileLabel: { color: C.dim, fontFamily: F.mono, fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' },
 });

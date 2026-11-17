@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Shell } from '../components/Shell';
-import { Button, Empty, Panel, Row, Segmented, T } from '../components/ui';
+import { Bevel, Button, Empty, Panel, Row, Segmented, T } from '../components/ui';
 import { fmtNum } from '../lib/calc';
 import { METERS_PER } from '../lib/odometer';
 import { useStore } from '../lib/store';
@@ -75,6 +75,7 @@ export default function TripScreen() {
       ) : null}
 
       <View style={styles.dial}>
+        <Bevel radius={22} />
         <Text style={T.label}>{trip ? `Recording · ${v?.nickname || v?.model}` : 'Ready'}</Text>
         <Text style={styles.big}>{fmtNum((trip?.meters ?? 0) / per, 1)}</Text>
         <Text style={[T.dim, { marginTop: -6 }]}>{unit}</Text>
@@ -133,9 +134,9 @@ export default function TripScreen() {
 }
 
 const styles = StyleSheet.create({
-  dial: { alignItems: 'center', backgroundColor: C.surface, borderRadius: 28, borderWidth: 1, borderColor: C.border, paddingVertical: 26, gap: 4 },
-  big: { color: C.text, fontFamily: F.bold, fontSize: 72, letterSpacing: -3, ...NUM },
+  dial: { alignItems: 'center', backgroundColor: C.glass, borderRadius: 22, borderWidth: 1, borderColor: C.glassEdge, paddingVertical: 26, gap: 4, overflow: 'hidden' },
+  big: { color: C.text, fontFamily: F.displayBold, fontSize: 96, lineHeight: 100, letterSpacing: 0, ...NUM },
   dialRow: { flexDirection: 'row', alignSelf: 'stretch', marginTop: 18, paddingHorizontal: 10 },
   dialCell: { flex: 1, alignItems: 'center', gap: 4 },
-  mid: { color: C.text, fontFamily: F.semibold, fontSize: 20, ...NUM },
+  mid: { color: C.text, fontFamily: F.display, fontSize: 24, ...NUM },
 });

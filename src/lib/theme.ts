@@ -1,22 +1,31 @@
-/** Dark, low-contrast surfaces with a single accent; numbers set in tabular figures. */
+/**
+ * Industrial glass: graphite and steel under frosted panels, sodium-amber as the single accent,
+ * DIN-style condensed figures and monospaced spec-plate labels.
+ */
 export const C = {
-  bg: '#0A0B0D',
-  surface: '#121418',
-  surface2: '#191C21',
-  surface3: '#22262C',
-  border: 'rgba(255,255,255,0.07)',
-  borderStrong: 'rgba(255,255,255,0.14)',
-  text: '#F3F4F6',
-  dim: '#9CA3AD',
-  faint: '#5E656F',
-  accent: '#7B93FF',
-  accentStrong: '#5A76F5',
-  accentSoft: 'rgba(123,147,255,0.14)',
-  onAccent: '#FFFFFF',
-  green: '#3DD68C',
-  yellow: '#F5B941',
-  red: '#FF6161',
-  redSoft: 'rgba(255,97,97,0.12)',
+  bg: '#08090B',
+  surface: '#111316',
+  surface2: '#181A1E',
+  surface3: '#23262B',
+  /** Frosted panel fill over the backdrop. */
+  glass: 'rgba(22,24,28,0.58)',
+  glassStrong: 'rgba(16,18,21,0.86)',
+  glassEdge: 'rgba(255,255,255,0.10)',
+  highlight: 'rgba(255,255,255,0.22)',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.16)',
+  text: '#F2F1EE',
+  dim: '#A3A39E',
+  faint: '#63645F',
+  accent: '#F2A93B',
+  accentStrong: '#D98E1F',
+  accentSoft: 'rgba(242,169,59,0.14)',
+  onAccent: '#16120A',
+  steel: '#8FA3B8',
+  green: '#4FD69C',
+  yellow: '#FFD45C',
+  red: '#FF5D4F',
+  redSoft: 'rgba(255,93,79,0.14)',
 };
 
 export const F = {
@@ -24,6 +33,13 @@ export const F = {
   medium: 'Inter_500Medium',
   semibold: 'Inter_600SemiBold',
   bold: 'Inter_700Bold',
+  /** Condensed DIN-style face for titles and figures. */
+  display: 'BarlowSemiCondensed_600SemiBold',
+  displayBold: 'BarlowSemiCondensed_700Bold',
+  displayMedium: 'BarlowSemiCondensed_500Medium',
+  /** Spec-plate labels and codes. */
+  mono: 'IBMPlexMono_500Medium',
+  monoRegular: 'IBMPlexMono_400Regular',
 };
 
 /** Spread into any Text style that shows figures, so digits do not shift width. */

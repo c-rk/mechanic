@@ -4,6 +4,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { C, F } from '../lib/theme';
+import { Backdrop } from './Backdrop';
 
 /** Page frame: compact header, centred column, scrolling body that fades in. */
 export function Shell({
@@ -27,6 +28,7 @@ export function Shell({
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <Backdrop />
       <View style={[styles.bar, { paddingTop: insets.top + 10 }]}>
         <View style={styles.barInner}>
           {back ? (
@@ -67,16 +69,18 @@ const styles = StyleSheet.create({
   bar: { paddingBottom: 12, paddingHorizontal: 18 },
   barInner: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', maxWidth: 760, alignSelf: 'center' },
   back: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: C.surface2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: C.glassEdge,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backText: { color: C.text, fontSize: 26, lineHeight: 28, marginTop: -2, fontFamily: F.regular },
-  eyebrow: { color: C.faint, fontFamily: F.semibold, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' },
-  title: { color: C.text, fontFamily: F.bold, fontSize: 24, letterSpacing: -0.5, marginTop: 1 },
+  eyebrow: { color: C.accent, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.6, textTransform: 'uppercase' },
+  title: { color: C.text, fontFamily: F.displayBold, fontSize: 28, letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 1 },
   body: { paddingHorizontal: 16, paddingTop: 4 },
   column: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 14 },
 });

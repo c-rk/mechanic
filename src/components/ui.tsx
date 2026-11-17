@@ -1,3 +1,5 @@
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode, useState } from 'react';
 import {
   Animated,
@@ -20,14 +22,38 @@ import { C, F, NUM } from '../lib/theme';
 export const T = StyleSheet.create({
   body: { color: C.text, fontFamily: F.regular, fontSize: 15, lineHeight: 21 },
   strong: { color: C.text, fontFamily: F.semibold, fontSize: 15, lineHeight: 21 },
-  dim: { color: C.dim, fontFamily: F.regular, fontSize: 13, lineHeight: 18 },
-  small: { color: C.faint, fontFamily: F.medium, fontSize: 12, lineHeight: 16, ...NUM },
-  label: { color: C.faint, fontFamily: F.semibold, fontSize: 11, letterSpacing: 0.9, textTransform: 'uppercase' },
-  title: { color: C.text, fontFamily: F.bold, fontSize: 22, letterSpacing: -0.4 },
-  num: { color: C.text, fontFamily: F.semibold, fontSize: 15, ...NUM },
+  dim: { color: C.dim, fontFamily: F.regular, fontSize: 13, lineHeight: 19 },
+  small: { color: C.faint, fontFamily: F.mono, fontSize: 11, lineHeight: 15, ...NUM },
+  label: { color: C.faint, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: C.text, fontFamily: F.displayBold, fontSize: 26, letterSpacing: 0.2, textTransform: 'uppercase' },
+  num: { color: C.text, fontFamily: F.display, fontSize: 17, ...NUM },
 });
 
-/** Content card with an optional header row. */
+/** Hairline highlight along the top edge of a glass surface: light catching the bevel. */
+export function Bevel({ radius = 18 }: { radius?: number }) {
+  return (
+    <LinearGradient
+      colors={['transparent', C.highlight, 'transparent']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={{ position: 'absolute', top: 0, left: radius, right: radius, height: StyleSheet.hairlineWidth * 2 }}
+      pointerEvents="none"
+    />
+  );
+}
+
+/** Frosted surface. iOS and web blur what is behind; Android uses a denser translucent fill. */
+export function GlassFill({ strong }: { strong?: boolean }) {
+  const blur = Platform.OS !== 'android';
+  return (
+    <>
+      {blur ? <BlurView intensity={strong ? 50 : 30} tint="dark" style={StyleSheet.absoluteFill} /> : null}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: blur ? C.glass : strong ? C.glassStrong : 'rgba(20,22,26,0.82)' }]} />
+    </>
+  );
+}
+
+/** Glass card with an optional spec-plate header. */
 export function Panel({
   title,
   right,
@@ -43,8 +69,11 @@ export function Panel({
 }) {
   return (
     <View style={[styles.panel, style]}>
+      <GlassFill />
+      <Bevel />
       {title ? (
         <View style={[styles.header, !pad && { paddingBottom: 12 }]}>
+          <View style={styles.headerMark} />
           <Text style={styles.headerText} numberOfLines={1}>
             {title}
           </Text>
@@ -57,12 +86,6 @@ export function Panel({
 }
 
 type Tone = 'primary' | 'secondary' | 'danger' | 'ghost';
-const TONES: Record<Tone, { bg: string; fg: string }> = {
-  primary: { bg: C.accent, fg: C.onAccent },
-  secondary: { bg: C.surface3, fg: C.text },
-  danger: { bg: C.redSoft, fg: C.red },
-  ghost: { bg: 'transparent', fg: C.dim },
-};
 
 /** Button with a spring press response. */
 export function Button({
@@ -82,7 +105,7 @@ export function Button({
 }) {
   const [scale] = useState(() => new Animated.Value(1));
   const to = (v: number) => Animated.spring(scale, { toValue: v, speed: 40, bounciness: 6, useNativeDriver: true }).start();
-  const t = TONES[tone];
+  const fg = tone === 'primary' ? C.onAccent : tone === 'danger' ? C.red : tone === 'ghost' ? C.accent : C.text;
   return (
     <Pressable
       onPress={onPress}
@@ -96,9 +119,13 @@ export function Button({
         style={[
           styles.button,
           small && styles.buttonSmall,
-          { backgroundColor: t.bg, opacity: disabled ? 0.4 : 1, transform: [{ scale }] },
+          tone === 'primary' && { backgroundColor: C.accent },
+          tone === 'secondary' && styles.buttonGlass,
+          tone === 'danger' && { backgroundColor: C.redSoft, borderWidth: 1, borderColor: 'rgba(255,93,79,0.35)' },
+          { opacity: disabled ? 0.4 : 1, transform: [{ scale }] },
         ]}>
-        <Text style={[styles.buttonText, small && { fontSize: 13 }, { color: t.fg }]} numberOfLines={1}>
+        {tone === 'primary' ? <Bevel radius={10} /> : null}
+        <Text style={[styles.buttonText, small && { fontSize: 13 }, { color: fg }]} numberOfLines={1}>
           {label}
         </Text>
       </Animated.View>
@@ -106,7 +133,7 @@ export function Button({
   );
 }
 
-/** Key figure: large tabular number with unit and label. */
+/** Key figure: large condensed tabular number with unit and label. */
 export function Stat({
   label,
   value,
@@ -124,6 +151,8 @@ export function Stat({
 }) {
   return (
     <View style={[styles.stat, flex !== undefined && { flex }]}>
+      <GlassFill />
+      <Bevel />
       <Text style={T.label}>{label}</Text>
       <View style={styles.statRow}>
         <Text style={[styles.statValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
@@ -142,7 +171,7 @@ export function Stat({
 
 export function Badge({ text, color }: { text: string; color: string }) {
   return (
-    <View style={[styles.badge, { backgroundColor: color + '1f' }]}>
+    <View style={[styles.badge, { borderColor: color + '66', backgroundColor: color + '14' }]}>
       <View style={[styles.dot, { backgroundColor: color }]} />
       <Text style={[styles.badgeText, { color }]}>{text}</Text>
     </View>
@@ -203,6 +232,7 @@ export function Input(props: React.ComponentProps<typeof TextInput>) {
   return (
     <TextInput
       placeholderTextColor={C.faint}
+      selectionColor={C.accent}
       {...props}
       onFocus={(e) => (setFocus(true), props.onFocus?.(e))}
       onBlur={(e) => (setFocus(false), props.onBlur?.(e))}
@@ -288,11 +318,13 @@ function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormPro
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.scrim}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]}>
+        <GlassFill strong />
+        <Bevel radius={28} />
         <View style={styles.grabber} />
-        <Text style={[T.title, { fontSize: 19, paddingHorizontal: 20 }]}>{title}</Text>
-        <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+        <Text style={[T.title, { fontSize: 22, paddingHorizontal: 22 }]}>{title}</Text>
+        <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 22, gap: 16 }} keyboardShouldPersistTaps="handled">
           {fields.map((f) => (
-            <View key={f.key} style={{ gap: 6 }}>
+            <View key={f.key} style={{ gap: 7 }}>
               <Text style={T.label}>{f.label}</Text>
               {f.kind === 'select' ? (
                 <Segmented options={f.options ?? []} value={String(draft[f.key] ?? '')} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
@@ -314,7 +346,7 @@ function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormPro
                   keyboardType={f.kind === 'number' ? 'decimal-pad' : 'default'}
                   multiline={f.kind === 'multiline'}
                   autoCapitalize="none"
-                  style={f.kind === 'number' || f.kind === 'date' ? NUM : undefined}
+                  style={f.kind === 'number' || f.kind === 'date' ? { fontFamily: F.display, fontSize: 18, ...NUM } : undefined}
                 />
               )}
             </View>
@@ -333,50 +365,52 @@ function FormBody({ title, fields, initial, onSave, onDelete, onClose }: FormPro
 }
 
 const styles = StyleSheet.create({
-  panel: { borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, gap: 10 },
-  headerText: { flex: 1, color: C.text, fontFamily: F.semibold, fontSize: 15, letterSpacing: -0.1 },
-  panelBody: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 },
-  button: { minHeight: 48, paddingHorizontal: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  buttonSmall: { minHeight: 34, paddingHorizontal: 14, borderRadius: 10 },
-  buttonText: { fontFamily: F.semibold, fontSize: 15, letterSpacing: -0.1 },
-  stat: { backgroundColor: C.surface, borderRadius: 18, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, paddingVertical: 12, gap: 4, minWidth: 0 },
+  panel: { borderRadius: 18, borderWidth: 1, borderColor: C.glassEdge, overflow: 'hidden' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 15, gap: 10 },
+  headerMark: { width: 3, height: 14, borderRadius: 1, backgroundColor: C.accent },
+  headerText: { flex: 1, color: C.text, fontFamily: F.display, fontSize: 16, letterSpacing: 1, textTransform: 'uppercase' },
+  panelBody: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 15 },
+  button: { minHeight: 50, paddingHorizontal: 22, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  buttonSmall: { minHeight: 34, paddingHorizontal: 14, borderRadius: 9 },
+  buttonGlass: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.glassEdge },
+  buttonText: { fontFamily: F.displayBold, fontSize: 16, letterSpacing: 1.2, textTransform: 'uppercase' },
+  stat: { borderRadius: 16, borderWidth: 1, borderColor: C.glassEdge, paddingHorizontal: 14, paddingVertical: 12, gap: 3, minWidth: 0, overflow: 'hidden' },
   statRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  statValue: { fontFamily: F.bold, fontSize: 26, letterSpacing: -0.6, flexShrink: 1, ...NUM },
-  statUnit: { color: C.dim, fontFamily: F.medium, fontSize: 13 },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  badgeText: { fontFamily: F.semibold, fontSize: 11, textTransform: 'capitalize' },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  statValue: { fontFamily: F.displayBold, fontSize: 32, letterSpacing: 0.2, flexShrink: 1, ...NUM },
+  statUnit: { color: C.dim, fontFamily: F.mono, fontSize: 11 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeText: { fontFamily: F.mono, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase' },
+  dot: { width: 5, height: 5, borderRadius: 1 },
   chipRow: { flexDirection: 'row', gap: 8 },
-  chip: { paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 999, backgroundColor: C.surface2 },
-  chipOn: { backgroundColor: C.text },
-  chipText: { color: C.dim, fontFamily: F.semibold, fontSize: 13, textTransform: 'capitalize' },
-  chipTextOn: { color: C.bg },
+  chip: { paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 9, borderWidth: 1, borderColor: C.glassEdge, backgroundColor: 'rgba(255,255,255,0.04)' },
+  chipOn: { backgroundColor: C.accent, borderColor: C.accent },
+  chipText: { color: C.dim, fontFamily: F.display, fontSize: 14, letterSpacing: 0.8, textTransform: 'uppercase' },
+  chipTextOn: { color: C.onAccent },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.borderStrong },
   input: {
-    backgroundColor: C.surface2,
+    backgroundColor: 'rgba(0,0,0,0.28)',
     color: C.text,
     borderWidth: 1,
-    borderColor: 'transparent',
-    borderRadius: 12,
+    borderColor: C.glassEdge,
+    borderRadius: 11,
     paddingHorizontal: 14,
-    minHeight: 46,
+    minHeight: 48,
     fontSize: 15,
     fontFamily: F.regular,
   },
   inputMulti: { minHeight: 92, paddingVertical: 12, textAlignVertical: 'top' },
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: {
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    backgroundColor: C.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: C.glassEdge,
     paddingTop: 10,
+    overflow: 'hidden',
   },
-  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.surface3, alignSelf: 'center', marginBottom: 14 },
-  sheetButtons: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 8, alignItems: 'center' },
+  grabber: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.borderStrong, alignSelf: 'center', marginBottom: 14 },
+  sheetButtons: { flexDirection: 'row', gap: 8, paddingHorizontal: 22, paddingTop: 8, alignItems: 'center' },
 });

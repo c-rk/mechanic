@@ -48,7 +48,7 @@ function Environment() {
   return null;
 }
 
-const BACKDROP = '#0e1013';
+const BACKDROP = '#0b0c0e';
 
 function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: number; spin: React.RefObject<Spin>; still?: boolean }) {
   const turntable = useRef<THREE.Group>(null);
@@ -76,9 +76,9 @@ function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: 
 
   return (
     <>
-      <hemisphereLight args={['#dfe6ff', '#1a1c20', 0.55]} />
-      <directionalLight position={[3, 8, 5]} intensity={2.1} />
-      <directionalLight position={[-6, 3, -4]} intensity={0.8} color="#b8c6ff" />
+      <hemisphereLight args={['#ffe9c8', '#0d0e11', 0.4]} />
+      <directionalLight position={[3, 8, 5]} intensity={2.1} color="#fff3e0" />
+      <directionalLight position={[-6, 3, -4]} intensity={0.6} color="#9fb3c8" />
       <group ref={turntable}>
         <primitive object={model} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]} scale={[length * 1.25, length * 1.25, 1]}>
@@ -91,7 +91,7 @@ function Stage({ model, length, spin, still }: { model: THREE.Object3D; length: 
       <fog attach="fog" args={[BACKDROP, length * 2.2, length * 5.5]} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]}>
         <circleGeometry args={[length * 8, 64]} />
-        <meshStandardMaterial color="#15171b" metalness={0.2} roughness={0.55} />
+        <meshStandardMaterial color="#0c0d10" metalness={0.2} roughness={0.6} envMapIntensity={0.15} />
       </mesh>
     </>
   );
@@ -143,7 +143,7 @@ export function Viewer3D({ bodyType, color, modelRef, wrap, height = 280, initia
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: '100%', overflow: 'hidden', backgroundColor: '#0e1013' },
+  wrap: { width: '100%', overflow: 'hidden', backgroundColor: '#0b0c0e' },
   spinner: { position: 'absolute', top: 12, right: 12 },
   note: { position: 'absolute', bottom: 10, left: 14, color: C.faint, fontFamily: F.medium, fontSize: 11 },
 });

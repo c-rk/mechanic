@@ -3,10 +3,12 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
 import { GarageScene, type GarageCamera } from '../components/garage/GarageScene';
 import { ActionTile, Glass, GlassButton, Icon, type IconName } from '../components/garage/Glass';
 import { QuickLog, type QuickKind } from '../components/QuickLog';
+import { Bevel, GlassFill } from '../components/ui';
 import { vehicleAlerts, type VehicleAlert } from '../lib/alerts';
 import { dueInfo, fmtNum, fuelStats, sortByDue, type DueInfo } from '../lib/calc';
 import { estimateOdometer, METERS_PER } from '../lib/odometer';
@@ -15,7 +17,7 @@ import { C, F, NUM } from '../lib/theme';
 import { useTrip } from '../lib/trip';
 import type { Vehicle } from '../lib/types';
 
-const LEVEL_COLOR = { critical: C.red, warn: C.yellow, info: C.accent } as const;
+const LEVEL_COLOR = { critical: C.red, warn: C.yellow, info: C.steel } as const;
 /** Share of the screen the info sheet covers; the 3D scene frames the car above it. */
 const SHEET_SHARE = 0.46;
 
@@ -231,6 +233,7 @@ function AlertRow({ a, v }: { a: VehicleAlert; v: Vehicle }) {
   const color = LEVEL_COLOR[a.level];
   return (
     <Pressable onPress={() => router.push(`/vehicle/${v.id}?tab=${a.tab}`)} style={({ pressed }) => [styles.alert, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.title}>
+      <HazardEdge color={a.level === 'critical' ? C.red : color} striped={a.level === 'critical'} />
       <View style={[styles.alertIcon, { backgroundColor: color + '26' }]}>
         <Icon name={a.icon as IconName} size={16} color={color} />
       </View>
@@ -244,6 +247,26 @@ function AlertRow({ a, v }: { a: VehicleAlert; v: Vehicle }) {
       </View>
       <Icon name="chevron-right" size={18} color={C.faint} />
     </Pressable>
+  );
+}
+
+/** Left edge marker; overdue items get safety striping. */
+function HazardEdge({ color, striped }: { color: string; striped: boolean }) {
+  return (
+    <View style={styles.edge}>
+      {striped ? (
+        <Svg width={6} height="100%">
+          <Defs>
+            <Pattern id="hz" width={6} height={8} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <Rect width={3} height={8} fill={color} />
+            </Pattern>
+          </Defs>
+          <Rect width={6} height="100%" fill="url(#hz)" />
+        </Svg>
+      ) : (
+        <View style={{ flex: 1, backgroundColor: color }} />
+      )}
+    </View>
   );
 }
 
@@ -278,8 +301,10 @@ function HelpSheet({ v, visible, onClose }: { v: Vehicle; visible: boolean; onCl
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close help" />
       <View style={[styles.helpSheet, { paddingBottom: insets.bottom + 16 }]}>
+        <GlassFill strong />
+        <Bevel radius={28} />
         <View style={styles.grabber} />
-        <Text style={[styles.name, { fontSize: 22 }]}>How can we help?</Text>
+        <Text style={[styles.name, { fontSize: 26 }]}>How can we help?</Text>
         <Text style={[styles.sub, { marginBottom: 8 }]}>{v.nickname || `${v.make} ${v.model}`}</Text>
         {items.map((it) => (
           <Pressable key={it.title} onPress={() => go(it.path)} style={({ pressed }) => [styles.helpRow, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
@@ -301,41 +326,42 @@ function HelpSheet({ v, visible, onClose }: { v: Vehicle; visible: boolean; onCl
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0a0b0d' },
   top: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  brand: { color: C.text, fontFamily: F.bold, fontSize: 15, letterSpacing: 4 },
-  count: { color: C.dim, fontFamily: F.medium, fontSize: 12, marginTop: 2, ...NUM },
+  brand: { color: C.text, fontFamily: F.displayBold, fontSize: 20, letterSpacing: 5 },
+  count: { color: C.accent, fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.4, marginTop: 2, textTransform: 'uppercase', ...NUM },
   live: { position: 'absolute', alignSelf: 'center' },
   liveInner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.red },
-  liveText: { color: C.text, fontFamily: F.semibold, fontSize: 13, ...NUM },
+  liveText: { color: C.text, fontFamily: F.mono, fontSize: 12, letterSpacing: 0.6, ...NUM },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12, gap: 12, alignItems: 'center' },
   pagerRow: { width: '100%', maxWidth: 560, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: 4 },
   dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
-  dotOn: { width: 22, backgroundColor: C.text },
+  dot: { width: 14, height: 3, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.22)' },
+  dotOn: { width: 28, backgroundColor: C.accent },
   sheet: { width: '100%', maxWidth: 560, padding: 18, gap: 16 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  name: { color: C.text, fontFamily: F.bold, fontSize: 26, letterSpacing: -0.7 },
-  sub: { color: C.dim, fontFamily: F.regular, fontSize: 13, lineHeight: 18 },
-  details: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 12, paddingRight: 6, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
-  detailsText: { color: C.text, fontFamily: F.semibold, fontSize: 13 },
+  name: { color: C.text, fontFamily: F.displayBold, fontSize: 32, letterSpacing: 0.4, textTransform: 'uppercase', lineHeight: 34 },
+  sub: { color: C.dim, fontFamily: F.mono, fontSize: 11, letterSpacing: 0.8, lineHeight: 16, textTransform: 'uppercase' },
+  details: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 12, paddingRight: 6, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: C.glassEdge, backgroundColor: 'rgba(255,255,255,0.05)' },
+  detailsText: { color: C.text, fontFamily: F.display, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase' },
   stats: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
   vr: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.14)' },
-  metricLabel: { color: C.faint, fontFamily: F.semibold, fontSize: 10, letterSpacing: 0.9, textTransform: 'uppercase' },
-  metricValue: { color: C.text, fontFamily: F.bold, fontSize: 21, letterSpacing: -0.5, ...NUM },
-  metricUnit: { color: C.dim, fontFamily: F.medium, fontSize: 12, ...NUM },
-  alert: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)' },
-  alertIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  alertTitle: { color: C.text, fontFamily: F.semibold, fontSize: 14 },
-  alertDetail: { color: C.dim, fontFamily: F.regular, fontSize: 12, marginTop: 1, ...NUM },
+  metricLabel: { color: C.faint, fontFamily: F.mono, fontSize: 9.5, letterSpacing: 1.2, textTransform: 'uppercase' },
+  metricValue: { color: C.text, fontFamily: F.displayBold, fontSize: 27, letterSpacing: 0.2, ...NUM },
+  metricUnit: { color: C.dim, fontFamily: F.mono, fontSize: 10.5, ...NUM },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, paddingLeft: 16, paddingRight: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: C.glassEdge, overflow: 'hidden' },
+  alertIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 6 },
+  alertTitle: { color: C.text, fontFamily: F.semibold, fontSize: 14.5 },
+  alertDetail: { color: C.dim, fontFamily: F.mono, fontSize: 11, marginTop: 2, ...NUM },
   more: { color: C.dim, fontFamily: F.medium, fontSize: 12, paddingLeft: 10 },
   allGood: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
   allGoodText: { color: C.dim, fontFamily: F.regular, fontSize: 13 },
   actions: { flexDirection: 'row', gap: 10 },
-  cta: { marginTop: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.accent, borderRadius: 16, minHeight: 52 },
-  ctaText: { color: C.onAccent, fontFamily: F.semibold, fontSize: 16 },
+  cta: { marginTop: 16, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.accent, borderRadius: 12, minHeight: 52 },
+  ctaText: { color: C.onAccent, fontFamily: F.displayBold, fontSize: 17, letterSpacing: 1.2, textTransform: 'uppercase' },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
   helpSheet: {
-    backgroundColor: C.surface,
+    overflow: 'hidden',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
@@ -344,10 +370,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: C.borderStrong,
+    borderWidth: 1,
+    borderColor: C.glassEdge,
   },
-  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.surface3, alignSelf: 'center', marginBottom: 12 },
+  grabber: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.borderStrong, alignSelf: 'center', marginBottom: 12 },
   helpRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
-  helpIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  helpIcon: { width: 44, height: 44, borderRadius: 11, backgroundColor: C.accentSoft, borderWidth: 1, borderColor: 'rgba(242,169,59,0.3)', alignItems: 'center', justifyContent: 'center' },
 });

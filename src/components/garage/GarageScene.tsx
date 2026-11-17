@@ -1,18 +1,22 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 import type { Vehicle } from '../../lib/types';
 import { contactShadow, radialGlow, useVehicleModel, type ModelSource } from '../useVehicleModel';
+import { bayNumber, corrugated, hazard } from './textures';
 
 /** Distance between parking bays along x, metres. */
 export const BAY = 5.2;
 /** Cars park nose-out at a three-quarter angle to the camera. */
 const YAW = -1.78;
 const BG = '#08090b';
-const ACCENT = '#7b93ff';
+/** Sodium-lamp amber, matching the UI accent. */
+const ACCENT = '#f2a93b';
+const LAMP = '#ffd9a0';
+const PAINT = '#e8b02e';
 
 export interface GarageCamera {
   /** Bay the camera settles on. */
@@ -92,36 +96,41 @@ function Car({ source }: { source: ModelSource }) {
 /** One parking bay: painted lines, a pool of light that brightens when the bay is selected, the car. */
 function Bay({ x, i, source, cam }: { x: number; i: number; source?: ModelSource; cam: React.RefObject<GarageCamera> }) {
   const pool = useRef<THREE.MeshBasicMaterial>(null);
+  const stopTex = useMemo(() => hazardStrip(BAY * 0.8), []);
   const strip = useRef<THREE.MeshBasicMaterial>(null);
   useFrame((_, dt) => {
     const c = cam.current;
     if (!c) return;
     const near = Math.max(0, 1 - Math.abs(c.index + c.drag - i));
     const k = 1 - Math.exp(-dt * 6);
-    if (pool.current) pool.current.opacity += (0.04 + near * 0.2 - pool.current.opacity) * k;
+    if (pool.current) pool.current.opacity += (0.02 + near * 0.12 - pool.current.opacity) * k;
     if (strip.current) strip.current.opacity += (0.03 + near * 0.22 - strip.current.opacity) * k;
   });
 
-  const lineMat = <meshBasicMaterial color="#c9ced6" transparent opacity={0.12} depthWrite={false} />;
+  const lineMat = <meshBasicMaterial color={PAINT} transparent opacity={0.55} depthWrite={false} />;
   return (
     <group position={[x, 0, 0]}>
-      {/* Bay side lines and the front stop line. */}
+      {/* Painted bay markings, a hazard-striped stop line at the back and the bay number up front. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-BAY / 2, 0.003, 0.4]}>
-        <planeGeometry args={[0.05, 7.2]} />
+        <planeGeometry args={[0.09, 7.2]} />
         {lineMat}
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[BAY / 2, 0.003, 0.4]}>
-        <planeGeometry args={[0.05, 7.2]} />
+        <planeGeometry args={[0.09, 7.2]} />
         {lineMat}
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, -3.2]}>
-        <planeGeometry args={[BAY, 0.07]} />
-        {lineMat}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, -3.25]}>
+        <planeGeometry args={[BAY * 0.8, 0.28]} />
+        <meshBasicMaterial map={stopTex} transparent opacity={0.8} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[BAY * 0.22, 0.003, 3.3]}>
+        <planeGeometry args={[1.7, 1.13]} />
+        <meshBasicMaterial map={bayNumber(i + 1)} color={PAINT} transparent opacity={0.75} depthWrite={false} />
       </mesh>
       {/* Overhead light falling on the floor. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
-        <planeGeometry args={[7.5, 7.5]} />
-        <meshBasicMaterial ref={pool} map={radialGlow()} transparent opacity={0.05} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <planeGeometry args={[6.2, 6.2]} />
+        <meshBasicMaterial ref={pool} map={radialGlow()} color={LAMP} transparent opacity={0.05} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
       {/* Soft accent wash on the back wall behind the selected car. */}
       <mesh position={[0, 1.4, -4.39]}>
@@ -133,12 +142,27 @@ function Bay({ x, i, source, cam }: { x: number; i: number; source?: ModelSource
   );
 }
 
+/** Each mesh needs its own texture instance to set its own repeat. */
+function hazardStrip(len: number) {
+  const t = hazard().clone();
+  t.repeat.set(len / 0.28, 1);
+  t.needsUpdate = true;
+  return t;
+}
+function wall(len: number) {
+  const t = corrugated().clone();
+  t.repeat.set(len / 0.22, 1);
+  t.needsUpdate = true;
+  return t;
+}
+
 export function GarageScene({ vehicles, cam }: { vehicles: Vehicle[]; cam: React.RefObject<GarageCamera> }) {
   // An empty garage still shows one bay with a placeholder car.
   const bays: (ModelSource | undefined)[] = vehicles.length
     ? vehicles.map((v) => ({ bodyType: v.bodyType, color: v.color, modelRef: v.modelRef, wrap: v.wrap }))
     : [{ bodyType: 'coupe', color: '#3b4048' }];
   const extent = Math.max(bays.length, 3) * BAY;
+  const wallTex = useMemo(() => wall(extent + 60), [extent]);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -147,9 +171,9 @@ export function GarageScene({ vehicles, cam }: { vehicles: Vehicle[]; cam: React
         <fog attach="fog" args={[BG, 11, 30]} />
         <Environment />
         <Rig cam={cam} />
-        <hemisphereLight args={['#dfe6ff', '#0d0e11', 0.35]} />
-        <directionalLight position={[4, 9, 6]} intensity={2.0} />
-        <directionalLight position={[-6, 4, -3]} intensity={0.6} color="#b8c6ff" />
+        <hemisphereLight args={['#ffe9c8', '#0d0e11', 0.35]} />
+        <directionalLight position={[4, 9, 6]} intensity={2.0} color="#fff3e0" />
+        <directionalLight position={[-6, 4, -3]} intensity={0.55} color="#9fb3c8" />
         {/* Polished concrete floor and back wall. */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[extent / 2 - BAY, 0, 0]}>
           <planeGeometry args={[extent + 60, 60]} />
@@ -157,7 +181,7 @@ export function GarageScene({ vehicles, cam }: { vehicles: Vehicle[]; cam: React
         </mesh>
         <mesh position={[extent / 2 - BAY, 3, -4.4]}>
           <planeGeometry args={[extent + 60, 6]} />
-          <meshStandardMaterial color="#0a0b0d" roughness={0.95} envMapIntensity={0.1} />
+          <meshStandardMaterial map={wallTex} color="#9aa0a8" roughness={0.8} metalness={0.3} envMapIntensity={0.15} />
         </mesh>
         {bays.map((b, i) => (
           <Bay key={vehicles[i]?.id ?? 'empty'} x={i * BAY} i={i} source={b} cam={cam} />
