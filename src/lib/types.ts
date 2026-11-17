@@ -59,6 +59,8 @@ export interface Vehicle {
   wrap?: Wrap;
   /** Raw decoded specification fields (e.g. from the NHTSA VIN decoder). */
   specs: Record<string, string>;
+  /** Specification sheet entries added by the AI or the owner (VIN values are derived from `specs`). */
+  specSheet?: import('./specSchema').SpecSheet;
   notes: string;
   createdAt: string;
 }

@@ -1,5 +1,7 @@
 import { describeDue, dueInfo, fuelStats, sortByDue } from './calc';
 import type { Data } from './store';
+import { mergeSheets, sheetFromVin } from './specFill';
+import { ALL_FIELDS } from './specSchema';
 import type { Vehicle } from './types';
 
 /** Builds the assistant's system prompt from the on-device record of one vehicle. */
@@ -13,9 +15,9 @@ export function buildSystemPrompt(v: Vehicle, d: Data): string {
     .slice(0, 25);
   const parts = mine(d.parts);
   const recalls = d.recalls[v.id]?.items ?? [];
-  const specs = Object.entries(v.specs)
-    .slice(0, 60)
-    .map(([k, val]) => `${k}: ${val}`)
+  const sheet = mergeSheets(sheetFromVin(v.specs, s.distanceUnit === 'km'), v.specSheet);
+  const specs = ALL_FIELDS.filter((x) => sheet[x.key])
+    .map((x) => `${x.label}: ${sheet[x.key].value}${sheet[x.key].source === 'ai' ? ' (AI estimate)' : ''}`)
     .join('; ');
 
   const lines = [
@@ -30,7 +32,7 @@ export function buildSystemPrompt(v: Vehicle, d: Data): string {
     `Body: ${v.bodyType}. Engine: ${v.engine || 'unknown'}. Fuel: ${v.fuelType}. Transmission: ${v.transmission || 'unknown'}.`,
     `VIN: ${v.vin || 'not recorded'}. Odometer: ${v.odometer} ${s.distanceUnit}.`,
     v.notes ? `Owner notes: ${v.notes}` : '',
-    specs ? `Decoded specifications: ${specs}` : '',
+    specs ? `Specifications: ${specs}` : '',
     '',
     '## Fuel',
     fuel.economy !== null

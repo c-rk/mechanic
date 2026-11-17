@@ -7,6 +7,7 @@ import { Shell } from '../../components/Shell';
 import { FuelTab, ServiceTab } from '../../components/tabs/FuelService';
 import { AssistantTab, IntelTab } from '../../components/tabs/IntelAssistant';
 import { DocsTab, PartsTab } from '../../components/tabs/PartsDocs';
+import { SpecsTab } from '../../components/tabs/SpecsTab';
 import { Badge, Empty, FormModal, Button, Stat, Panel, Row, Segmented, T } from '../../components/ui';
 import { Viewer3D } from '../../components/Viewer3D';
 import { describeDue, dueInfo, fmtNum, fuelStats, sortByDue } from '../../lib/calc';
@@ -19,6 +20,7 @@ import type { Vehicle } from '../../lib/types';
 
 const TABS = [
   { value: 'overview', label: 'Overview' },
+  { value: 'specs', label: 'Specs' },
   { value: 'fuel', label: 'Fuel' },
   { value: 'service', label: 'Service' },
   { value: 'parts', label: 'Parts' },
@@ -50,6 +52,7 @@ export default function VehicleScreen() {
       </View>
       <Segmented options={[...TABS]} value={tab} onChange={setTab} scroll />
       {tab === 'overview' ? <Overview v={v} onTab={setTab} /> : null}
+      {tab === 'specs' ? <SpecsTab v={v} /> : null}
       {tab === 'fuel' ? <FuelTab v={v} /> : null}
       {tab === 'service' ? <ServiceTab v={v} /> : null}
       {tab === 'parts' ? <PartsTab v={v} /> : null}
@@ -71,7 +74,6 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
   const removeVehicle = useStore((s) => s.removeVehicle);
   const [odo, setOdo] = useState(false);
   const [message, setMessage] = useState('');
-  const [showSpecs, setShowSpecs] = useState(false);
 
   const stats = fuelStats(fuel.filter((f) => f.vehicleId === v.id), settings);
   const serviceSpend = services.filter((r) => r.vehicleId === v.id).reduce((a, r) => a + r.cost, 0);
@@ -80,7 +82,6 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
   const due = sortByDue(maintenance.filter((m) => m.vehicleId === v.id).map((m) => ({ m, due: dueInfo(m, est.estimate, est.perDay) })));
   const attention = due.filter((x) => x.due.state === 'overdue' || x.due.state === 'soon');
   const upcoming = (attention.length ? attention : due.filter((x) => x.due.state === 'ok')).slice(0, 4);
-  const specs = Object.entries(v.specs);
 
   const uploadModel = async () => {
     setMessage('');
@@ -144,7 +145,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
 
       <Panel title="Vehicle data" right={<Button label="Edit" tone="ghost" small onPress={() => router.push(`/vehicle/new?edit=${v.id}`)} />}>
         {facts.map(([k, val], i) => (
-          <Row key={k} last={i === facts.length - 1 && !specs.length && !v.notes}>
+          <Row key={k} last={i === facts.length - 1 && !v.notes}>
             <Text style={[T.label, { width: 104 }]}>{k}</Text>
             <Text style={[T.body, { flex: 1, fontFamily: k === 'VIN' || k === 'Plate' ? F.medium : F.regular }]} selectable>
               {val || '—'}
@@ -152,19 +153,7 @@ function Overview({ v, onTab }: { v: Vehicle; onTab: (t: Tab) => void }) {
           </Row>
         ))}
         {v.notes ? <Text style={[T.dim, { marginTop: 8 }]}>{v.notes}</Text> : null}
-        {specs.length ? (
-          <>
-            <Button label={showSpecs ? 'Hide decoded specs' : `Decoded specs (${specs.length})`} tone="secondary" small onPress={() => setShowSpecs(!showSpecs)} style={{ alignSelf: 'flex-start', marginTop: 10 }} />
-            {showSpecs
-              ? specs.map(([k, val]) => (
-                  <Row key={k}>
-                    <Text style={[T.dim, { flex: 1 }]}>{k}</Text>
-                    <Text style={[T.body, { flex: 1, fontSize: 13 }]}>{val}</Text>
-                  </Row>
-                ))
-              : null}
-          </>
-        ) : null}
+        <Button label="Full specification" tone="secondary" small onPress={() => onTab('specs')} style={{ alignSelf: 'flex-start', marginTop: 12 }} />
       </Panel>
 
       <Panel title="Odometer history" right={<Button label="Add" tone="ghost" small onPress={() => setOdo(true)} />}>
