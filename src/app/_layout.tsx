@@ -8,10 +8,10 @@ import { BarlowSemiCondensed_700Bold } from '@expo-google-fonts/barlow-semi-cond
 import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono/400Regular';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono/500Medium';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import { mergeBackgroundTrip } from '../lib/trip';
 import { useStore } from '../lib/store';
@@ -42,5 +42,27 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg }, animation: 'slide_from_right' }} />
     </>
+  );
+}
+
+/**
+ * Shown instead of closing the app when a screen throws, with the message so it can be reported.
+ * Uses system fonts: custom fonts may not be loaded when this renders.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 24, paddingTop: 80, gap: 14 }}>
+      <Text style={{ color: C.accent, fontSize: 12, letterSpacing: 2 }}>BAY ONE · ERROR</Text>
+      <Text style={{ color: C.text, fontSize: 24, fontWeight: '700' }}>Something went wrong</Text>
+      <Text selectable style={{ color: C.dim, fontSize: 14, lineHeight: 20 }}>
+        {error.message}
+      </Text>
+      <Text selectable style={{ color: C.faint, fontSize: 11, lineHeight: 15 }}>
+        {(error.stack ?? '').split('\n').slice(0, 12).join('\n')}
+      </Text>
+      <Text onPress={retry} style={{ color: C.onAccent, backgroundColor: C.accent, padding: 14, borderRadius: 12, textAlign: 'center', fontWeight: '700', overflow: 'hidden' }}>
+        Try again
+      </Text>
+    </ScrollView>
   );
 }
