@@ -114,9 +114,11 @@ export function applyWrap(root: THREE.Object3D, wrap: WrapTextures) {
   const seen = new Set<THREE.Material>();
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
-    const mat = o.material as THREE.MeshStandardMaterial;
-    if (seen.has(mat) || !(mat instanceof THREE.MeshStandardMaterial)) return;
-    seen.add(mat);
-    patch(mat, uniforms);
+    const mats = (Array.isArray(o.material) ? o.material : [o.material]) as THREE.Material[];
+    for (const mat of mats) {
+      if (seen.has(mat) || !(mat instanceof THREE.MeshStandardMaterial)) continue;
+      seen.add(mat);
+      patch(mat, uniforms);
+    }
   });
 }
