@@ -1,0 +1,16 @@
+{
+  "name": "Bay One",
+  "short_name": "Bay One",
+  "description": "Your personal garage: fuel, service, parts, documents and a mechanic assistant, stored on your device.",
+  "start_url": "/mechanic/",
+  "scope": "/mechanic/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0B0D",
+  "theme_color": "#0A0B0D",
+  "icons": [
+    { "src": "/mechanic/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/mechanic/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/mechanic/icons/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
