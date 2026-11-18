@@ -31,7 +31,8 @@ export function PartsTab({ v }: { v: Vehicle }) {
   const [pricing, setPricing] = useState<Part | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [priceNote, setPriceNote] = useState('');
-  const proxyUrl = useStore((s) => s.settings.proxyUrl);
+  // The Bay One relay is always available (Setup can point at another one).
+  const proxyUrl = true;
 
   /** Reads the price from the shop page through the data proxy and appends it to the history. */
   const fetchPrice = async (p: Part) => {

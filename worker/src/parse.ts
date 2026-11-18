@@ -1,6 +1,6 @@
 /** Pure response mappers and HTML extraction; no Workers APIs, so they run under Node tests. */
 
-export type ResearchKind = 'video' | 'reddit' | 'web' | 'complaint';
+export type ResearchKind = 'manual' | 'video' | 'reddit' | 'forum' | 'web' | 'wiki' | 'complaint';
 
 export interface ResearchItem {
   kind: ResearchKind;
@@ -202,4 +202,87 @@ export function safeTarget(raw: string): URL | null {
   if (!h.includes('.') || h === 'localhost' || /\.(local|internal|localhost|lan|home|corp)$/.test(h)) return null;
   if (/^\d+\.\d+\.\d+\.\d+$/.test(h) || h.startsWith('[') || h.includes(':')) return null;
   return u;
+}
+
+// ---------------------------------------------------------------------------------------------
+// YouTube without an API key: the results page embeds its data as `var ytInitialData = {...};`.
+
+export function parseYoutubeHtml(html: string): ResearchItem[] {
+  const m = /var ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/.exec(html);
+  if (!m) return [];
+  let data: unknown;
+  try {
+    data = JSON.parse(m[1]);
+  } catch {
+    return [];
+  }
+  const out: ResearchItem[] = [];
+  for (const n of walk(data)) {
+    const v = n.videoRenderer;
+    if (!v?.videoId) continue;
+    const text = (x: any) => x?.simpleText ?? (x?.runs ?? []).map((r: any) => r.text).join('');
+    const snippet = (v.detailedMetadataSnippets ?? []).map((d: any) => text(d.snippetText)).join(' ');
+    const thumbs = v.thumbnail?.thumbnails ?? [];
+    out.push({
+      kind: 'video',
+      title: clip(text(v.title), 200) ?? '',
+      url: `https://www.youtube.com/watch?v=${v.videoId}`,
+      source: [clip(text(v.ownerText), 80), text(v.lengthText)].filter(Boolean).join(' · ') || 'YouTube',
+      snippet: clip(snippet),
+      date: text(v.publishedTimeText) || undefined,
+      thumbnail: thumbs[thumbs.length - 1]?.url,
+    });
+  }
+  // The same video can appear in several shelves.
+  return out.filter((x, i) => out.findIndex((y) => y.url === x.url) === i);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Readable text from an article or forum page, for offline reading.
+
+export function extractReadable(html: string, maxChars = 40000): { title?: string; text: string } {
+  const title = clip(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1], 200);
+  // Tags whose attributes may contain '>' (e.g. Wikipedia's data-mw JSON) need a quote-aware pattern.
+  const TAG = /<\/?[a-zA-Z](?:[^>"']|"[^"]*"|'[^']*')*>/g;
+  let body = html
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|noscript|svg|nav|header|footer|aside|form|iframe|table|figure|sup)\b[\s\S]*?<\/\1>/gi, ' ');
+  const main = /<(article|main)\b[\s\S]*?<\/\1>/i.exec(body);
+  if (main && main[0].length > 1500) body = main[0];
+  const text = decodeEntities(
+    body
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6]|tr|blockquote|pre|section)>/gi, '\n')
+      .replace(/<li\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, '• ')
+      .replace(TAG, ' '),
+  )
+    .split('\n')
+    .map((l) => l.replace(/[ \t\u00a0]+/g, ' ').trim())
+    .filter((l) => l.length > 1)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+  return { title, text: text.length > maxChars ? text.slice(0, maxChars) + '…' : text };
+}
+
+const FORUM_HOSTS = /forum|forums|club|owners|board|community|discourse|vbulletin|xenforo|bimmerpost|rennlist|clublexus|civicx|tacomaworld|f150forum|jeepforum|vwvortex|audizine|corvetteforum|mbworld|priuschat/i;
+const MANUAL_HINT = /(owner'?s?|service|repair|workshop|maintenance)[ -]?(manual|guide|handbook)|manual\.pdf|\bmanualslib\b|\bowners\.[a-z]+\.com\b|techinfo|service information/i;
+
+/** Sorts a web search result into the Intel sections. */
+export function classify(item: ResearchItem): ResearchItem {
+  let host = '';
+  let path = '';
+  try {
+    const u = new URL(item.url);
+    host = u.hostname.replace(/^www\./, '');
+    path = u.pathname.toLowerCase();
+  } catch {
+    return item;
+  }
+  const text = `${item.title} ${item.url}`;
+  if (path.endsWith('.pdf') || MANUAL_HINT.test(text)) return { ...item, kind: 'manual' };
+  if (host.endsWith('reddit.com')) return { ...item, kind: 'reddit' };
+  if (host.endsWith('youtube.com') || host === 'youtu.be') return { ...item, kind: 'video' };
+  if (host.endsWith('wikipedia.org')) return { ...item, kind: 'wiki' };
+  if (FORUM_HOSTS.test(host) || /\/(threads?|topic|forums?|t)\//.test(path)) return { ...item, kind: 'forum' };
+  return item;
 }

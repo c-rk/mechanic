@@ -2,7 +2,7 @@ import { useStore } from './store';
 import type { Vehicle } from './types';
 
 /** Mirrors worker/src/parse.ts. */
-export type ResearchKind = 'video' | 'reddit' | 'web' | 'complaint';
+export type ResearchKind = 'manual' | 'video' | 'reddit' | 'forum' | 'web' | 'wiki' | 'complaint';
 
 export interface ResearchItem {
   kind: ResearchKind;
@@ -13,6 +13,8 @@ export interface ResearchItem {
   date?: string;
   score?: number;
   thumbnail?: string;
+  /** Readable text saved for offline reading (forum threads and articles). */
+  offlineText?: string;
 }
 
 export interface ProductInfo {
@@ -23,12 +25,14 @@ export interface ProductInfo {
   url?: string;
 }
 
-export const proxyConfigured = () => Boolean(useStore.getState().settings.proxyUrl.trim());
+/** The Bay One relay deployed for this app; Setup can point at another one. */
+export const DEFAULT_PROXY = 'https://bay-one-proxy.tiny-violet-c3ae.workers.dev';
+
+export const proxyBase = () => (useStore.getState().settings.proxyUrl.trim() || DEFAULT_PROXY).replace(/\/+$/, '');
 
 async function get<T>(path: string, params: Record<string, string>): Promise<T> {
-  const { proxyUrl, proxyToken } = useStore.getState().settings;
-  const base = proxyUrl.trim().replace(/\/+$/, '');
-  if (!base) throw new Error('No data proxy configured. Add its URL in Setup.');
+  const { proxyToken } = useStore.getState().settings;
+  const base = proxyBase();
   const qs = new URLSearchParams(params).toString();
   let res: Response;
   try {
@@ -57,4 +61,19 @@ export async function checkPrice(url: string) {
 
 export async function proxyHealth() {
   return get<{ ok: boolean; features: Record<string, boolean> }>('/health', {});
+}
+
+export async function readPage(url: string) {
+  return get<{ title?: string; text: string; url: string }>('/page', { url });
+}
+
+/** Downloads a PDF through the relay (shops and manufacturers rarely allow cross-origin downloads). */
+export async function fetchPdf(url: string): Promise<{ blob: Blob; name: string }> {
+  const { proxyToken } = useStore.getState().settings;
+  const res = await fetch(`${proxyBase()}/file?${new URLSearchParams({ url })}`, { headers: proxyToken ? { 'x-bayone-token': proxyToken } : {} });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error ?? `Download failed (HTTP ${res.status})`);
+  }
+  return { blob: await res.blob(), name: res.headers.get('x-bayone-filename') || 'manual.pdf' };
 }

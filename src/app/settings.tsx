@@ -6,7 +6,7 @@ import { Shell } from '../components/Shell';
 import { Button, Input, Panel, Segmented, T } from '../components/ui';
 import { DEFAULT_MODELS } from '../lib/ai';
 import { PickedFile, readText, shareText } from '../lib/files';
-import { proxyHealth } from '../lib/proxy';
+import { DEFAULT_PROXY, proxyHealth } from '../lib/proxy';
 import { scheduleOdometerReminder } from '../lib/reminders';
 import { getApiKey, setApiKey } from '../lib/secrets';
 import { exportData, today, useStore } from '../lib/store';
@@ -141,18 +141,19 @@ export default function SettingsScreen() {
       <Panel title="Data proxy (Cloudflare Worker)">
         <View style={{ gap: 12 }}>
           <Text style={T.dim}>
-            Collects Reddit threads, YouTube videos, forum results, NHTSA complaints and shop prices. Only make, model, year
-            and part URLs are sent; nothing is stored on the worker. Deploy it from the worker/ folder of this project.
+            Collects YouTube videos, Wikipedia, NHTSA owner complaints and shop prices, and downloads manual PDFs and pages for
+            offline reading. Only make, model, year and the URLs you open are sent; nothing is stored. Leave the URL empty to
+            use the Bay One relay.
           </Text>
           <View style={{ gap: 6 }}>
             <Text style={T.label}>Worker URL</Text>
-            <Input accessibilityLabel="Worker URL" value={settings.proxyUrl} onChangeText={(t) => setSettings({ proxyUrl: t.trim() })} autoCapitalize="none" placeholder="https://bay-one-proxy.<you>.workers.dev" />
+            <Input accessibilityLabel="Worker URL" value={settings.proxyUrl} onChangeText={(t) => setSettings({ proxyUrl: t.trim() })} autoCapitalize="none" placeholder={DEFAULT_PROXY} />
           </View>
           <View style={{ gap: 6 }}>
             <Text style={T.label}>App token</Text>
             <Input accessibilityLabel="App token" value={settings.proxyToken} onChangeText={(t) => setSettings({ proxyToken: t.trim() })} autoCapitalize="none" secureTextEntry placeholder="Value of the worker's APP_TOKEN secret" />
           </View>
-          <Button label="Test connection" tone="secondary" small onPress={testProxy} disabled={!settings.proxyUrl} style={{ alignSelf: 'flex-start' }} />
+          <Button label="Test connection" tone="secondary" small onPress={testProxy} style={{ alignSelf: 'flex-start' }} />
           {proxyNote ? <Text style={T.dim}>{proxyNote}</Text> : null}
         </View>
       </Panel>

@@ -9,4 +9,4 @@ compatibility_date = "2026-11-01"
 #   REDDIT_CLIENT_ID     Reddit "script"/"web" app id, enables authenticated Reddit search
 #   REDDIT_CLIENT_SECRET
 [vars]
-ALLOWED_ORIGINS = "*"
+ALLOWED_ORIGINS = "https://c-rk.github.io,http://localhost:8081,http://localhost:8099"

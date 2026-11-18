@@ -37,6 +37,8 @@ All records, photos and documents are stored on the device (IndexedDB on web; As
 
 ## Data proxy (Cloudflare Worker)
 
+Deployed at https://bay-one-proxy.tiny-violet-c3ae.workers.dev and used by default. It accepts browser requests only from the app's origins (`ALLOWED_ORIGINS` in `worker/wrangler.toml`). Without any keys it provides YouTube results, Wikipedia, NHTSA complaints, shop prices, PDF downloads (`/file`) and readable page text (`/page`). In the app, manuals and forum threads are found with Claude web search using the owner's own key.
+
 `worker/` holds a stateless relay. It exists because browsers block cross-origin requests to Reddit, YouTube, search APIs and shops, and because those API keys must not ship inside the app.
 
 ```bash

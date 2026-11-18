@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { askAssistant } from '../../lib/ai';
 import { buildSystemPrompt } from '../../lib/context';
-import { fetchRecalls, researchLinks } from '../../lib/nhtsa';
+import { fetchRecalls } from '../../lib/nhtsa';
 import { getApiKey } from '../../lib/secrets';
 import { exportData, uid, useStore } from '../../lib/store';
 import { AREA, C, F } from '../../lib/theme';
@@ -79,18 +79,6 @@ export function IntelTab({ v }: { v: Vehicle }) {
       </Panel>
 
       <ResearchPanel v={v} />
-
-      <Panel tint={AREA.research} title="Research shortcuts">
-        <Text style={[T.dim, { marginBottom: 4 }]}>
-          Searches pre-filled for this vehicle. They open in the browser; save the useful results below.
-        </Text>
-        {researchLinks(v).map((l, i, a) => (
-          <Row key={l.url} onPress={() => Linking.openURL(l.url)} last={i === a.length - 1}>
-            <Text style={[T.body, { flex: 1 }]}>{l.title}</Text>
-            <Text style={{ color: C.accent }}>►</Text>
-          </Row>
-        ))}
-      </Panel>
 
       <Panel tint={AREA.research} title="Saved references" right={<Button label="Add" small onPress={() => setEditing({})} />}>
         {links.length === 0 ? <Empty text="No saved manuals, threads or videos." /> : null}
