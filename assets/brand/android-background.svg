@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="b-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20242C"/><stop offset="1" stop-color="#0B0C0F"/>
+    </linearGradient>
+    <linearGradient id="b-mark" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#9DBBFF"/><stop offset="0.55" stop-color="#7EA6FF"/><stop offset="1" stop-color="#B49DFF"/>
+    </linearGradient>
+    <radialGradient id="b-glow" cx="0.5" cy="0.62" r="0.5">
+      <stop offset="0" stop-color="#7EA6FF" stop-opacity="0.28"/><stop offset="1" stop-color="#7EA6FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="b-sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs><rect width="1024" height="1024" fill="url(#b-tile)"/></svg>

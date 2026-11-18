@@ -7,6 +7,7 @@ import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
 import { GarageScene, type GarageCamera } from '../components/garage/GarageScene';
 import { ActionTile, Glass, GlassButton, Icon, type IconName } from '../components/garage/Glass';
+import { Logo } from '../components/Logo';
 import { QuickLog, type QuickKind } from '../components/QuickLog';
 import { Bevel, GlassFill } from '../components/ui';
 import { vehicleAlerts, type VehicleAlert } from '../lib/alerts';
@@ -89,11 +90,14 @@ export default function Garage() {
 
       {/* Top bar */}
       <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-        <View>
-          <Text style={styles.brand}>
-            BAY <Text style={{ color: C.dim }}>ONE</Text>
-          </Text>
-          <Text style={styles.count}>{count ? `Bay ${String(active + 1).padStart(2, '0')} of ${String(count).padStart(2, '0')}` : 'Empty garage'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Logo size={40} />
+          <View>
+            <Text style={styles.brand}>
+              BAY <Text style={{ color: C.dim }}>ONE</Text>
+            </Text>
+            <Text style={styles.count}>{count ? `Bay ${String(active + 1).padStart(2, '0')} of ${String(count).padStart(2, '0')}` : 'Empty garage'}</Text>
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <GlassButton icon="plus" label="Add vehicle" onPress={() => router.push('/vehicle/new')} />
@@ -276,7 +280,10 @@ function HazardEdge({ color, striped }: { color: string; striped: boolean }) {
 function EmptySheet() {
   return (
     <Glass style={styles.sheet}>
-      <Text style={styles.name}>Your garage is empty</Text>
+      <View style={{ zIndex: 1, position: 'relative' }}>
+        <Logo size={56} />
+      </View>
+      <Text style={[styles.name, { marginTop: 12 }]}>Your garage is empty</Text>
       <Text style={[styles.sub, { marginTop: 4 }]}>
         Park a vehicle by VIN or by make and model. Fuel, service, parts and documents stay on this device.
       </Text>

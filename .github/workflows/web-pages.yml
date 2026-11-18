@@ -31,8 +31,8 @@ jobs:
         run: npx expo export --platform web
         env:
           EXPO_BASE_URL: /${{ github.event.repository.name }}
-      # Single-page app: serve index.html for deep links such as /vehicle/<id>.
-      - run: cp dist/index.html dist/404.html
+      # Fill in the base path for icons and the manifest; serve index.html for deep links.
+      - run: ./scripts/finish-web.sh /${{ github.event.repository.name }}
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
